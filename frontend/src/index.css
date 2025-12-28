@@ -1,0 +1,145 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+  font-family: "SF Pro Display", "SF Pro Text", "SF Pro", "Helvetica Neue", sans-serif;
+  color: #0f172a;
+  background-color: #f5f6f8;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: radial-gradient(1200px circle at 10% 10%, #ffffff 0%, #f4f6fb 45%, #e9edf4 100%);
+}
+
+#app {
+  min-height: 100vh;
+}
+
+.app-shell {
+  position: relative;
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+.aurora-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.orb {
+  position: absolute;
+  width: clamp(280px, 45vw, 520px);
+  height: clamp(280px, 45vw, 520px);
+  border-radius: 999px;
+  filter: blur(80px);
+  opacity: 0.35;
+}
+
+.orb-one {
+  top: -140px;
+  left: -120px;
+  background: radial-gradient(circle, rgba(99, 102, 241, 0.45), rgba(147, 197, 253, 0.1));
+}
+
+.orb-two {
+  bottom: -180px;
+  right: -120px;
+  background: radial-gradient(circle, rgba(236, 72, 153, 0.25), rgba(244, 114, 182, 0.05));
+}
+
+.fade-rise {
+  animation: fade-rise 0.8s ease both;
+}
+
+.fade-delay-1 {
+  animation-delay: 0.1s;
+}
+
+.fade-delay-2 {
+  animation-delay: 0.2s;
+}
+
+.fade-delay-3 {
+  animation-delay: 0.3s;
+}
+
+@keyframes fade-rise {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 18px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+.auth-card {
+  backdrop-filter: blur(18px);
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  box-shadow: 0 30px 70px rgba(15, 23, 42, 0.12);
+}
+
+.auth-input .el-input__wrapper {
+  border-radius: 14px;
+  padding: 6px 16px;
+  box-shadow: none;
+  min-height: 48px;
+}
+
+.auth-input .el-input__wrapper.is-focus {
+  box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.2);
+}
+
+.auth-button {
+  border-radius: 999px;
+  height: 48px;
+  font-weight: 600;
+}
+
+.auth-button.el-button--primary {
+  background: #111827;
+  border-color: #111827;
+}
+
+.auth-button.el-button--primary:hover,
+.auth-button.el-button--primary:focus {
+  background: #1f2937;
+  border-color: #1f2937;
+}
+
+.auth-form .el-form-item {
+  margin-bottom: 0;
+}
+
+.auth-form .el-form-item__content {
+  width: 100%;
+}
+
+.auth-form .el-input {
+  width: 100%;
+}
+
+.auth-card .el-form-item__label {
+  color: #6b7280;
+  font-size: 0.85rem;
+  padding-bottom: 6px;
+}
+
+@media (max-width: 640px) {
+  .auth-card {
+    border-radius: 24px;
+  }
+}
