@@ -8,9 +8,12 @@ import path from "node:path";
  */
 export default defineConfig({
   plugins: [vue()],
-  resolve: {
-    alias: {
-      "@": path.resolve(process.cwd(), "src"),
+  server: {
+    proxy: {
+      "/api": {
+        target: "http://localhost:8000",
+        changeOrigin: true,
+      },
     },
   },
 });

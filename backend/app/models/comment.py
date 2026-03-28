@@ -2,7 +2,7 @@
 
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, Text
 
-from app.db.base import Base
+from backend.app.db.base import Base
 
 
 class Comment(Base):
@@ -25,3 +25,4 @@ class Comment(Base):
     content = Column(Text, nullable=False)
     parent_id = Column(Integer, nullable=False, default=0)
     create_time = Column(DateTime, default=datetime.utcnow, nullable=False)
+

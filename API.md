@@ -348,6 +348,33 @@ status=published // 可选: draft/published
 
 ---
 
+### 3.7 上传文章图片（本地存储）
+
+- **URL**：`POST /api/upload/image`  
+- **是否需要登录**：是  
+- **请求类型**：`multipart/form-data`  
+- **请求体（FormData）**：
+
+```text
+file=<image file>
+```
+
+- **返回示例**：
+
+```json
+{
+  "code": 0,
+  "message": "上传成功",
+  "data": {
+    "url": "/uploads/2025/03/filename.png"
+  }
+}
+```
+
+> 前端使用场景：文章发布/编辑时插入图片。
+
+---
+
 ## 四、互动与行为相关接口
 
 ### 4.1 点赞 / 取消点赞
@@ -718,7 +745,13 @@ limit=10
   - `GET /api/user/info`（登录后获取用户信息）
 
 - **首页（推荐流）**：  
-  - `GET /api/recommend/list`
+  - `GET /api/recommend/list`（如后端提供个性化推荐流）
+  - `GET /api/article/list`（首页综合列表，支持搜索/分类/标签筛选）
+  - `GET /api/article/list?order=hottest`（热门文章推荐）
+  - `POST /api/article/like`（列表内点赞）
+  - `POST /api/behavior/comment`（评论提交）
+  - `GET /api/comment/list`（评论列表）
+  - 分享功能前端可直接生成链接，无需新增接口
 
 - **文章列表页（按分类/标签/搜索）**：  
   - `GET /api/article/list`

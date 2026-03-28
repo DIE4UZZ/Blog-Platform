@@ -1,7 +1,7 @@
 ﻿from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from app.core.config import get_settings
+from backend.app.core.config import get_settings
 
 
 _settings = get_settings()
@@ -22,3 +22,4 @@ def get_db():
         yield db
     finally:
         db.close()
+

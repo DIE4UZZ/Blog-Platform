@@ -1,28 +1,37 @@
-﻿from fastapi import APIRouter, Depends, HTTPException
+from datetime import datetime
+
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from app.core.deps import get_current_user
-from app.core.response import success_response
-from app.db.session import get_db
-from app.models.article import Article
-from app.models.article_collect import ArticleCollect
-from app.models.article_like import ArticleLike
-from app.models.user import User
-from app.schemas.article import ArticleActionRequest
+from backend.app.core.deps import get_current_user
+from backend.app.core.response import success_response
+from backend.app.db.session import get_db
+from backend.app.models.article import Article
+from backend.app.models.article_collect import ArticleCollect
+from backend.app.models.article_like import ArticleLike
+from backend.app.models.behavior import UserBehavior
+from backend.app.models.user import User
+from backend.app.schemas.article import ArticleActionRequest
 
 router = APIRouter()
 
 
+def _record_behavior(db: Session, user_id: int, article_id: int, behavior_type: str) -> None:
+    """记录互动行为，供分析模块使用。"""
+
+    db.add(
+        UserBehavior(
+            user_id=user_id,
+            article_id=article_id,
+            behavior_type=behavior_type,
+            create_time=datetime.utcnow(),
+        )
+    )
+    db.commit()
+
+
 def _update_like_count(db: Session, article: Article) -> None:
-    """Update article like count based on like records.
-
-    Args:
-        db (Session): Database session.
-        article (Article): Article entity.
-
-    Returns:
-        None: No return value.
-    """
+    """根据点赞记录刷新文章点赞数。"""
 
     article.like_count = (
         db.query(ArticleLike).filter(ArticleLike.article_id == article.id).count()
@@ -37,17 +46,10 @@ def like_article(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Like or unlike an article.
+    """点赞或取消点赞。"""
 
-    Args:
-        payload (ArticleActionRequest): Like action payload.
-        db (Session): Database session.
-        current_user (User): Current user from auth dependency.
-
-    Returns:
-        dict: Standardized response with like status.
-    """
-
+    if payload.action not in {"like", "unlike"}:
+        raise HTTPException(status_code=400, detail="不支持的操作类型")
     article = (
         db.query(Article)
         .filter(Article.id == payload.article_id, Article.is_deleted == False)
@@ -55,6 +57,7 @@ def like_article(
     )
     if not article:
         raise HTTPException(status_code=404, detail="文章不存在")
+
     existing = (
         db.query(ArticleLike)
         .filter(
@@ -64,12 +67,13 @@ def like_article(
         .first()
     )
     if payload.action == "like" and existing is None:
-        record = ArticleLike(user_id=current_user.id, article_id=payload.article_id)
-        db.add(record)
+        db.add(ArticleLike(user_id=current_user.id, article_id=payload.article_id))
         db.commit()
+        _record_behavior(db, current_user.id, payload.article_id, "like")
     if payload.action == "unlike" and existing is not None:
         db.delete(existing)
         db.commit()
+
     _update_like_count(db, article)
     return success_response(
         {
@@ -81,15 +85,7 @@ def like_article(
 
 
 def _update_collect_count(db: Session, article: Article) -> None:
-    """Update article collect count based on collect records.
-
-    Args:
-        db (Session): Database session.
-        article (Article): Article entity.
-
-    Returns:
-        None: No return value.
-    """
+    """根据收藏记录刷新文章收藏数。"""
 
     article.collect_count = (
         db.query(ArticleCollect)
@@ -106,17 +102,10 @@ def collect_article(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Collect or uncollect an article.
+    """收藏或取消收藏。"""
 
-    Args:
-        payload (ArticleActionRequest): Collect action payload.
-        db (Session): Database session.
-        current_user (User): Current user from auth dependency.
-
-    Returns:
-        dict: Standardized response with collect status.
-    """
-
+    if payload.action not in {"collect", "uncollect"}:
+        raise HTTPException(status_code=400, detail="不支持的操作类型")
     article = (
         db.query(Article)
         .filter(Article.id == payload.article_id, Article.is_deleted == False)
@@ -124,6 +113,7 @@ def collect_article(
     )
     if not article:
         raise HTTPException(status_code=404, detail="文章不存在")
+
     existing = (
         db.query(ArticleCollect)
         .filter(
@@ -133,12 +123,13 @@ def collect_article(
         .first()
     )
     if payload.action == "collect" and existing is None:
-        record = ArticleCollect(user_id=current_user.id, article_id=payload.article_id)
-        db.add(record)
+        db.add(ArticleCollect(user_id=current_user.id, article_id=payload.article_id))
         db.commit()
+        _record_behavior(db, current_user.id, payload.article_id, "collect")
     if payload.action == "uncollect" and existing is not None:
         db.delete(existing)
         db.commit()
+
     _update_collect_count(db, article)
     return success_response(
         {

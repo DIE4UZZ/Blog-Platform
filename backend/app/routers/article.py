@@ -6,14 +6,16 @@ from markdown import markdown
 from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
-from app.core.deps import get_current_user, get_optional_user, require_admin
-from app.core.response import success_response
-from app.db.session import get_db
-from app.models.article import Article
-from app.models.article_collect import ArticleCollect
-from app.models.article_like import ArticleLike
-from app.models.user import User
-from app.schemas.article import ArticleEditRequest, ArticlePublishRequest
+from backend.app.core.deps import get_current_user, get_optional_user
+from backend.app.core.response import success_response
+from backend.app.db.session import get_db
+from backend.app.models.article import Article
+from backend.app.models.article_collect import ArticleCollect
+from backend.app.models.article_like import ArticleLike
+from backend.app.models.recommendation import Recommendation
+from backend.app.models.user import User
+from backend.app.routers.recommend import push_new_article_recommendations
+from backend.app.schemas.article import ArticleEditRequest, ArticlePublishRequest
 
 router = APIRouter()
 
@@ -46,6 +48,34 @@ def split_tags(tags: str | None) -> List[str]:
     if not tags:
         return []
     return [tag.strip() for tag in tags.split(",") if tag.strip()]
+
+
+def resolve_author_name(user: User | None) -> str | None:
+    """Resolve display name for an article author."""
+
+    if not user:
+        return None
+    return user.username or user.email or user.phone
+
+
+def mark_recommendation_clicked(db: Session, user_id: int, article_id: int) -> None:
+    """将当前用户命中的推荐记录标记为已点击。"""
+
+    records = (
+        db.query(Recommendation)
+        .filter(
+            Recommendation.user_id == user_id,
+            Recommendation.article_id == article_id,
+            Recommendation.is_clicked == False,
+        )
+        .all()
+    )
+    if not records:
+        return
+    for record in records:
+        record.is_clicked = True
+        db.add(record)
+    db.commit()
 
 
 @router.post("/article/publish")
@@ -81,7 +111,13 @@ def publish_article(
     db.add(article)
     db.commit()
     db.refresh(article)
-    return success_response({"article_id": article.id}, message="发布成功")
+    pushed_user_count = 0
+    if article.status == "published":
+        pushed_user_count = push_new_article_recommendations(db, article)
+    return success_response(
+        {"article_id": article.id, "pushed_user_count": pushed_user_count},
+        message="发布成功",
+    )
 
 
 @router.put("/article/edit")
@@ -176,6 +212,10 @@ def get_article_detail(
     )
     if not article:
         raise HTTPException(status_code=404, detail="文章不存在")
+    if article.status != "published" and not (
+        current_user and (current_user.role == "admin" or current_user.id == article.author_id)
+    ):
+        raise HTTPException(status_code=403, detail="权限不足")
     article.view_count += 1
     article.update_time = datetime.utcnow()
     db.add(article)
@@ -183,6 +223,7 @@ def get_article_detail(
     is_liked = False
     is_collected = False
     if current_user:
+        mark_recommendation_clicked(db, current_user.id, article.id)
         is_liked = (
             db.query(ArticleLike)
             .filter(
@@ -207,14 +248,16 @@ def get_article_detail(
         "content": article.content,
         "html_content": article.html_content,
         "category": article.category,
+        "status": article.status,
         "tags": split_tags(article.tags),
         "author": {
             "user_id": article.author_id,
-            "username": None,
+            "username": resolve_author_name(article.author),
         },
         "view_count": article.view_count,
         "like_count": article.like_count,
         "collect_count": article.collect_count,
+        "comment_count": article.comment_count,
         "create_time": article.create_time.strftime("%Y-%m-%d %H:%M:%S"),
         "update_time": article.update_time.strftime("%Y-%m-%d %H:%M:%S"),
         "is_liked": is_liked,
@@ -241,11 +284,13 @@ def _build_article_list_item(article: Article) -> dict:
         "tags": split_tags(article.tags),
         "author": {
             "user_id": article.author_id,
-            "username": None,
+            "username": resolve_author_name(article.author),
         },
         "view_count": article.view_count,
         "like_count": article.like_count,
         "collect_count": article.collect_count,
+        "comment_count": article.comment_count,
+        "status": article.status,
         "create_time": article.create_time.strftime("%Y-%m-%d %H:%M:%S"),
     }
 
@@ -275,7 +320,9 @@ def list_articles(
         dict: Standardized response with article list.
     """
 
-    query = db.query(Article).filter(Article.is_deleted == False)
+    query = db.query(Article).filter(
+        Article.is_deleted == False, Article.status == "published"
+    )
     if category:
         query = query.filter(Article.category == category)
     if tags:
@@ -283,7 +330,11 @@ def list_articles(
         for tag in tag_list:
             query = query.filter(Article.tags.like(f"%{tag}%"))
     if keyword:
-        query = query.filter(Article.title.like(f"%{keyword}%"))
+        query = query.filter(
+            (Article.title.like(f"%{keyword}%"))
+            | (Article.content.like(f"%{keyword}%"))
+            | (Article.summary.like(f"%{keyword}%"))
+        )
     if order == "hottest":
         query = query.order_by(desc(Article.view_count))
     else:
@@ -343,3 +394,4 @@ def list_my_articles(
         "page_size": page_size,
     }
     return success_response(data)
+

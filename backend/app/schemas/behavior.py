@@ -19,3 +19,7 @@ class BehaviorReportRequest(BaseModel):
     read_duration: int | None = None
     scroll_depth: float | None = None
     keyword: str | None = None
+
+
+class BehaviorBatchReportRequest(BaseModel):
+    items: list[BehaviorReportRequest]

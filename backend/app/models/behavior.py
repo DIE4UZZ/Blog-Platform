@@ -2,7 +2,7 @@
 
 from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String
 
-from app.db.base import Base
+from backend.app.db.base import Base
 
 
 class UserBehavior(Base):
@@ -29,3 +29,4 @@ class UserBehavior(Base):
     scroll_depth = Column(Float, nullable=True)
     keyword = Column(String(255), nullable=True)
     create_time = Column(DateTime, default=datetime.utcnow, nullable=False)
+

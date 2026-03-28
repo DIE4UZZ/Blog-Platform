@@ -2,7 +2,7 @@
 
 from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String
 
-from app.db.base import Base
+from backend.app.db.base import Base
 
 
 class Recommendation(Base):
@@ -27,3 +27,4 @@ class Recommendation(Base):
     recommend_score = Column(Float, nullable=False, default=0.0)
     is_clicked = Column(Boolean, nullable=False, default=False)
     create_time = Column(DateTime, default=datetime.utcnow, nullable=False)
+

@@ -1,7 +1,7 @@
 ﻿from functools import lru_cache
 from typing import List
 
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -21,11 +21,13 @@ class Settings(BaseSettings):
     jwt_expire_hours: int = 24
     cors_origins: List[str] = ["*"]
 
-    class Config:
-        """Pydantic settings configuration."""
-
-        env_prefix = "BLOG_"
-        case_sensitive = False
+    model_config = SettingsConfigDict(
+        env_prefix="BLOG_",
+        env_file="backend/.env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore",
+    )
 
 
 @lru_cache(maxsize=1)

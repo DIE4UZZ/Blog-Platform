@@ -5,9 +5,9 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError
 from sqlalchemy.orm import Session
 
-from app.core.security import decode_access_token
-from app.db.session import get_db
-from app.models.user import User
+from backend.app.core.security import decode_access_token
+from backend.app.db.session import get_db
+from backend.app.models.user import User
 
 security = HTTPBearer(auto_error=False)
 
@@ -82,3 +82,4 @@ def require_admin(user: User = Depends(get_current_user)) -> User:
     if user.role != "admin":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="权限不足")
     return user
+

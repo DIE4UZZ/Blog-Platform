@@ -4,7 +4,7 @@ from typing import Any, Dict
 from jose import jwt
 from passlib.context import CryptContext
 
-from app.core.config import get_settings
+from backend.app.core.config import get_settings
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -67,3 +67,4 @@ def decode_access_token(token: str) -> Dict[str, Any]:
 
     settings = get_settings()
     return jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
+

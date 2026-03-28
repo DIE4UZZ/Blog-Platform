@@ -2,7 +2,7 @@
 
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, UniqueConstraint
 
-from app.db.base import Base
+from backend.app.db.base import Base
 
 
 class ArticleCollect(Base):
@@ -24,3 +24,4 @@ class ArticleCollect(Base):
     user_id = Column(Integer, ForeignKey("user.id"), nullable=False, index=True)
     article_id = Column(Integer, ForeignKey("article.id"), nullable=False, index=True)
     create_time = Column(DateTime, default=datetime.utcnow, nullable=False)
+
