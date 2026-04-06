@@ -27,12 +27,15 @@
           <div v-for="item in 4" :key="item" class="skeleton-line"></div>
         </div>
         <div v-else-if="articleList.length === 0">
-          <EmptyState title="暂无内容" message="尝试调整筛选条件" />
+          <EmptyState title="暂无内容" message="尝试调整筛选条件。" />
         </div>
         <div v-else class="card-list">
           <article v-for="item in articleList" :key="item.article_id" class="list-card">
             <div class="list-card__meta">
               <span class="tag-chip">{{ item.category || "未分类" }}</span>
+              <span v-if="!isSearching && item.recommend_type" class="tag-chip tag-chip--ghost">
+                {{ recommendTypeLabel(item.recommend_type) }}
+              </span>
               <span class="meta-text">{{ formatDate(item.create_time) }}</span>
             </div>
             <h3 class="list-card__title">{{ item.title }}</h3>
@@ -63,7 +66,12 @@
           <EmptyState title="暂无热门" message="稍后再试" />
         </div>
         <div v-else class="stack-list">
-          <router-link v-for="item in hotList" :key="item.article_id" class="stack-item" :to="`/articles/${item.article_id}`">
+          <router-link
+            v-for="item in hotList"
+            :key="item.article_id"
+            class="stack-item"
+            :to="`/articles/${item.article_id}`"
+          >
             <p class="stack-title">{{ item.title }}</p>
             <span class="meta-text">阅读 {{ item.view_count || 0 }}</span>
           </router-link>
@@ -99,6 +107,17 @@ const isHotLoading = ref(false);
 const isSearching = computed(() => {
   return Boolean(filters.keyword.trim() || filters.category.trim() || filters.tags.trim());
 });
+
+function recommendTypeLabel(type) {
+  const map = {
+    hybrid: "混合推荐",
+    content_semantic: "内容推荐",
+    collaborative_filtering: "协同过滤",
+    cold_start: "冷启动",
+    new_article_cold_start: "新文触达",
+  };
+  return map[String(type || "").toLowerCase()] || "个性推荐";
+}
 
 function formatDate(value) {
   if (!value) return "未知时间";

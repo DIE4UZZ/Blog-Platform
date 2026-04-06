@@ -1,9 +1,9 @@
 <template>
   <AppLayout>
     <section class="hero-block hero-compact">
-      <p class="hero-kicker">推荐效果</p>
+      <p class="hero-kicker">Recommend Effect</p>
       <h1 class="hero-title">推荐效果分析</h1>
-      <p class="hero-subtitle">支持趋势对比、基准线观察与阶段变化判断。</p>
+      <p class="hero-subtitle">支持趋势对比，并从推荐来源角度观察曝光、点击和转化表现。</p>
     </section>
 
     <AnalysisNav />
@@ -58,7 +58,7 @@
           <div class="metric-card">
             <p class="meta-text">转化量</p>
             <h3 class="metric-value">{{ formatCount(totalConversions) }}</h3>
-            <p class="meta-text">最佳 CTR 日 {{ comparison.best_ctr_date || "--" }}</p>
+            <p class="meta-text">最佳 CTR 日期 {{ comparison.best_ctr_date || "--" }}</p>
           </div>
         </div>
       </SectionCard>
@@ -71,6 +71,29 @@
         <p v-if="!hasDaily" class="meta-text">当前时间范围暂无曝光数据，已展示零值趋势图。</p>
         <v-chart class="analysis-chart" :option="chartOption" autoresize />
       </SectionCard>
+
+      <SectionCard title="推荐来源分布">
+        <div v-if="sourceBreakdown.length === 0" class="meta-text">当前时间范围暂无来源分布数据。</div>
+        <div v-else class="analysis-split analysis-split--stack">
+          <div class="analysis-split__list">
+            <div v-for="item in sourceBreakdown" :key="item.recommend_type" class="source-item">
+              <div class="source-item__head">
+                <span class="source-item__label">{{ recommendTypeLabel(item.recommend_type) }}</span>
+                <span class="source-item__meta">{{ formatCount(item.impressions) }} 曝光</span>
+              </div>
+              <div class="source-item__stats">
+                <span>点击率 {{ formatPercent(item.ctr) }}</span>
+                <span>转化率 {{ formatPercent(item.conversion) }}</span>
+                <span>点击 {{ formatCount(item.clicks) }}</span>
+                <span>转化 {{ formatCount(item.conversions) }}</span>
+              </div>
+            </div>
+          </div>
+          <div class="analysis-split__chart">
+            <v-chart class="analysis-chart" :option="sourceChartOption" autoresize />
+          </div>
+        </div>
+      </SectionCard>
     </div>
   </AppLayout>
 </template>
@@ -78,7 +101,7 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from "vue";
 import { use } from "echarts/core";
-import { BarChart, LineChart } from "echarts/charts";
+import { BarChart, LineChart, PieChart } from "echarts/charts";
 import { GridComponent, LegendComponent, TooltipComponent } from "echarts/components";
 import { CanvasRenderer } from "echarts/renderers";
 import VChart from "vue-echarts";
@@ -90,7 +113,15 @@ import { fetchRecommendEffect } from "../../services/analysis.js";
 import { fetchUserInfo } from "../../services/user.js";
 import { createDefaultRange, formatPercent } from "../../utils/analysis.js";
 
-use([CanvasRenderer, GridComponent, TooltipComponent, LegendComponent, BarChart, LineChart]);
+use([
+  CanvasRenderer,
+  GridComponent,
+  TooltipComponent,
+  LegendComponent,
+  BarChart,
+  LineChart,
+  PieChart,
+]);
 
 const defaultRange = createDefaultRange(14);
 const filters = reactive({
@@ -104,6 +135,7 @@ const effectData = reactive({
   clicks: 0,
   conversions: 0,
   daily: [],
+  source_breakdown: [],
   comparison: {},
 });
 const isLoading = ref(false);
@@ -111,6 +143,7 @@ const currentUserId = ref(null);
 
 const hasDaily = computed(() => effectData.daily.length > 0);
 const comparison = computed(() => effectData.comparison || {});
+const sourceBreakdown = computed(() => effectData.source_breakdown || []);
 const totalImpressions = computed(() => {
   if (Number(effectData.impressions) > 0) return Number(effectData.impressions);
   return effectData.daily.reduce((sum, item) => sum + Number(item.impressions || 0), 0);
@@ -160,6 +193,18 @@ function toPercentText(value) {
   return `${(Number(value || 0) * 100).toFixed(1)}%`;
 }
 
+function recommendTypeLabel(type) {
+  const map = {
+    hybrid: "混合推荐",
+    content_semantic: "内容推荐",
+    collaborative_filtering: "协同过滤",
+    cold_start: "冷启动",
+    new_article_cold_start: "新文章触达",
+    unknown: "未知来源",
+  };
+  return map[String(type || "").toLowerCase()] || String(type || "未知来源");
+}
+
 const dailyRowsForChart = computed(() => {
   return hasDaily.value
     ? effectData.daily
@@ -180,9 +225,11 @@ const chartOption = computed(() => {
     tooltip: {
       trigger: "axis",
       formatter(params) {
+        const rateSeries = ["点击率", "转化率", "点击率均值", "转化率均值"];
         const lines = params.map((item) => {
-          const isRate = ["点击率", "转化率", "点击率均值", "转化率均值"].includes(item.seriesName);
-          const valueText = isRate ? toPercentText(item.value) : `${Number(item.value || 0)}`;
+          const valueText = rateSeries.includes(item.seriesName)
+            ? toPercentText(item.value)
+            : `${Number(item.value || 0)}`;
           return `${item.marker}${item.seriesName}: ${valueText}`;
         });
         return [`<strong>${params[0]?.axisValue || ""}</strong>`, ...lines].join("<br/>");
@@ -267,6 +314,63 @@ const chartOption = computed(() => {
   };
 });
 
+const sourceChartOption = computed(() => {
+  const names = sourceBreakdown.value.map((item) => recommendTypeLabel(item.recommend_type));
+  const impressions = sourceBreakdown.value.map((item) => Number(item.impressions || 0));
+  const pieData = sourceBreakdown.value.map((item) => ({
+    name: recommendTypeLabel(item.recommend_type),
+    value: Number(item.impressions || 0),
+  }));
+
+  return {
+    tooltip: { trigger: "item" },
+    legend: { bottom: 0, data: names },
+    grid: { left: 28, right: 24, top: 20, bottom: 80 },
+    xAxis: {
+      type: "category",
+      data: names,
+      axisLabel: { color: "#64748b", rotate: 18 },
+      axisLine: { lineStyle: { color: "rgba(148,163,184,0.6)" } },
+    },
+    yAxis: {
+      type: "value",
+      name: "曝光量",
+      axisLabel: { color: "#64748b" },
+      splitLine: { lineStyle: { color: "rgba(226,232,240,0.85)" } },
+    },
+    series: [
+      {
+        name: "来源曝光",
+        type: "bar",
+        data: impressions,
+        barMaxWidth: 28,
+        itemStyle: {
+          color: {
+            type: "linear",
+            x: 0,
+            y: 0,
+            x2: 0,
+            y2: 1,
+            colorStops: [
+              { offset: 0, color: "#2563eb" },
+              { offset: 1, color: "#93c5fd" },
+            ],
+          },
+          borderRadius: [8, 8, 0, 0],
+        },
+      },
+      {
+        name: "来源占比",
+        type: "pie",
+        radius: ["36%", "58%"],
+        center: ["78%", "34%"],
+        label: { formatter: "{b}\n{d}%" },
+        data: pieData,
+      },
+    ],
+  };
+});
+
 function formatCount(value) {
   return `${Number(value || 0)}`;
 }
@@ -318,6 +422,14 @@ async function loadEffect() {
       ctr: Number(item.ctr || 0),
       conversion: Number(item.conversion || 0),
     }));
+    effectData.source_breakdown = (data?.source_breakdown || []).map((item) => ({
+      recommend_type: item.recommend_type,
+      impressions: Number(item.impressions || 0),
+      clicks: Number(item.clicks || 0),
+      conversions: Number(item.conversions || 0),
+      ctr: Number(item.ctr || 0),
+      conversion: Number(item.conversion || 0),
+    }));
     effectData.comparison = data?.comparison || {};
   } finally {
     isLoading.value = false;
@@ -356,5 +468,42 @@ onMounted(async () => {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+}
+
+.source-item {
+  padding: 14px 16px;
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  border-radius: 18px;
+  background: rgba(248, 250, 252, 0.9);
+}
+
+.source-item + .source-item {
+  margin-top: 12px;
+}
+
+.source-item__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.source-item__label {
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.source-item__meta {
+  color: #475569;
+  font-size: 0.88rem;
+}
+
+.source-item__stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  color: #475569;
+  font-size: 0.86rem;
 }
 </style>

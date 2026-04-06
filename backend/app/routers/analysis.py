@@ -198,6 +198,25 @@ def recommend_effect(
     ctr = float(clicks) / float(impressions) if impressions else 0.0
     conversion = float(conversions) / float(clicks) if clicks else 0.0
 
+    source_bucket: dict[str, dict[str, int]] = defaultdict(
+        lambda: {"impressions": 0, "clicks": 0, "conversions": 0}
+    )
+    for recommendation in recommendations:
+        source_key = str(recommendation.recommend_type or "unknown")
+        source_bucket[source_key]["impressions"] += 1
+        if recommendation.is_clicked:
+            source_bucket[source_key]["clicks"] += 1
+
+    for recommendation in clicked_recommendations:
+        source_key = str(recommendation.recommend_type or "unknown")
+        if _has_conversion_after(
+            conversion_lookup,
+            recommendation.article_id,
+            recommendation.create_time,
+            end_dt,
+        ):
+            source_bucket[source_key]["conversions"] += 1
+
     daily_bucket: dict[str, dict[str, int]] = defaultdict(
         lambda: {"impressions": 0, "clicks": 0, "conversions": 0}
     )
@@ -281,6 +300,29 @@ def recommend_effect(
         float(previous_conversions) / float(previous_clicks) if previous_clicks else 0.0
     )
 
+    source_breakdown = []
+    for source_key, row in sorted(
+        source_bucket.items(),
+        key=lambda item: (-int(item[1]["impressions"]), item[0]),
+    ):
+        source_impressions = int(row["impressions"])
+        source_clicks = int(row["clicks"])
+        source_conversions = int(row["conversions"])
+        source_breakdown.append(
+            {
+                "recommend_type": source_key,
+                "impressions": source_impressions,
+                "clicks": source_clicks,
+                "conversions": source_conversions,
+                "ctr": float(source_clicks) / float(source_impressions)
+                if source_impressions
+                else 0.0,
+                "conversion": float(source_conversions) / float(source_clicks)
+                if source_clicks
+                else 0.0,
+            }
+        )
+
     return success_response(
         {
             "click_through_rate": ctr,
@@ -289,6 +331,7 @@ def recommend_effect(
             "clicks": clicks,
             "conversions": conversions,
             "daily": daily,
+            "source_breakdown": source_breakdown,
             "comparison": {
                 "average_daily_ctr": average_daily_ctr,
                 "average_daily_conversion": average_daily_conversion,

@@ -1,9 +1,9 @@
-﻿<template>
+<template>
   <AppLayout>
     <section class="hero-block hero-compact">
       <p class="hero-kicker">Read Trend</p>
       <h1 class="hero-title">阅读趋势分析</h1>
-      <p class="hero-subtitle">同屏展示 PV、UV 与平均阅读时长，支持按日/周/月统计。</p>
+      <p class="hero-subtitle">同屏展示 PV、UV、阅读时长与滚动深度，支持按日/周/月统计。</p>
     </section>
 
     <AnalysisNav />
@@ -47,7 +47,7 @@
     />
 
     <div v-else class="analysis-grid">
-      <SectionCard title="PV / UV / 阅读时长">
+      <SectionCard title="PV / UV / 阅读时长 / 滚动深度">
         <div class="metric-hero-grid">
           <div class="metric-hero metric-hero--read">
             <div class="metric-hero__head">
@@ -102,6 +102,26 @@
               ></span>
             </div>
           </div>
+
+          <div class="metric-hero metric-hero--depth">
+            <div class="metric-hero__head">
+              <div class="metric-hero__icon metric-hero__icon--depth"></div>
+              <div>
+                <p class="metric-hero__label">平均滚动深度</p>
+                <h3 class="metric-hero__value">{{ formatDepth(avgScrollDepth) }}</h3>
+              </div>
+            </div>
+            <div class="metric-hero__meta">
+              <span>峰值 {{ formatDepth(maxScrollDepth) }}</span>
+              <span>最新 {{ formatDepth(latestScrollDepth) }}</span>
+            </div>
+            <div class="metric-hero__bar">
+              <span
+                class="metric-hero__bar-fill metric-hero__bar-fill--depth"
+                :style="{ width: `${scrollDepthProgress}%` }"
+              ></span>
+            </div>
+          </div>
         </div>
         <div ref="chartRef" class="analysis-chart"></div>
       </SectionCard>
@@ -134,6 +154,7 @@ const trendData = reactive({
   total_pv: 0,
   total_uv: 0,
   avg_read_duration: [],
+  avg_scroll_depth: [],
 });
 
 const chartRef = ref(null);
@@ -141,17 +162,25 @@ const chartInstance = ref(null);
 const isLoading = ref(false);
 const currentUserId = ref(null);
 
+const scrollDepthPercentSeries = computed(() =>
+  trendData.avg_scroll_depth.map((value) => Math.round(Number(value || 0) * 100))
+);
 const totalPv = computed(() => Number(trendData.total_pv || 0));
 const totalUv = computed(() => Number(trendData.total_uv || 0));
 const maxPv = computed(() => calculateMax(trendData.read_counts));
 const maxUv = computed(() => calculateMax(trendData.uv_counts));
 const maxDuration = computed(() => calculateMax(trendData.avg_read_duration));
+const maxScrollDepth = computed(() => calculateMax(scrollDepthPercentSeries.value));
 const latestPv = computed(() => getLastValue(trendData.read_counts));
 const latestUv = computed(() => getLastValue(trendData.uv_counts));
 const latestDuration = computed(() => getLastValue(trendData.avg_read_duration));
+const latestScrollDepth = computed(() => getLastValue(scrollDepthPercentSeries.value));
 const pvProgress = computed(() => calculateProgress(latestPv.value, maxPv.value));
 const uvProgress = computed(() => calculateProgress(latestUv.value, maxUv.value));
 const durationProgress = computed(() => calculateProgress(latestDuration.value, maxDuration.value));
+const scrollDepthProgress = computed(() =>
+  calculateProgress(latestScrollDepth.value, maxScrollDepth.value)
+);
 
 const avgDuration = computed(() => {
   const totalRead = trendData.read_counts.reduce((sum, value) => sum + (Number(value) || 0), 0);
@@ -160,6 +189,12 @@ const avgDuration = computed(() => {
     return sum + (Number(value) || 0) * (Number(trendData.read_counts[index]) || 0);
   }, 0);
   return Math.round(weightedTotal / totalRead);
+});
+
+const avgScrollDepth = computed(() => {
+  if (!scrollDepthPercentSeries.value.length) return 0;
+  const total = scrollDepthPercentSeries.value.reduce((sum, value) => sum + Number(value || 0), 0);
+  return Math.round(total / scrollDepthPercentSeries.value.length);
 });
 
 function calculateMax(values) {
@@ -192,6 +227,12 @@ function formatNumber(value) {
   return `${(safeValue / 10000).toFixed(1)}万`;
 }
 
+function formatDepth(value) {
+  const safeValue = Number(value || 0);
+  if (!safeValue) return "--";
+  return `${safeValue}%`;
+}
+
 function initChart() {
   if (!chartRef.value || chartInstance.value) return;
   chartInstance.value = echarts.init(chartRef.value);
@@ -209,9 +250,9 @@ function updateChart() {
   ]);
 
   chartInstance.value.setOption({
-    grid: { left: 40, right: 46, top: 46, bottom: 40 },
+    grid: { left: 40, right: 92, top: 46, bottom: 40 },
     tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
-    legend: { data: ["PV", "UV", "平均阅读时长"] },
+    legend: { data: ["PV", "UV", "平均阅读时长", "平均滚动深度"] },
     xAxis: {
       type: "category",
       data: trendData.dates,
@@ -230,6 +271,19 @@ function updateChart() {
         name: "时长(秒)",
         position: "right",
         axisLabel: { color: "#64748b" },
+        splitLine: { show: false },
+      },
+      {
+        type: "value",
+        name: "深度(%)",
+        position: "right",
+        offset: 58,
+        min: 0,
+        max: 100,
+        axisLabel: {
+          color: "#64748b",
+          formatter: "{value}%",
+        },
         splitLine: { show: false },
       },
     ],
@@ -265,6 +319,17 @@ function updateChart() {
         lineStyle: { color: "#3b82f6", width: 3 },
         itemStyle: { color: "#3b82f6" },
         areaStyle: { color: durationGradient },
+      },
+      {
+        name: "平均滚动深度",
+        type: "line",
+        yAxisIndex: 2,
+        data: scrollDepthPercentSeries.value,
+        smooth: true,
+        symbol: "circle",
+        symbolSize: 7,
+        lineStyle: { color: "#0f766e", width: 2 },
+        itemStyle: { color: "#0f766e" },
       },
     ],
     animationDuration: 800,
@@ -312,6 +377,7 @@ async function loadTrend() {
     trendData.total_pv = Number(data?.total_pv || 0);
     trendData.total_uv = Number(data?.total_uv || 0);
     trendData.avg_read_duration = data?.avg_read_duration || [];
+    trendData.avg_scroll_depth = data?.avg_scroll_depth || [];
   } catch (_error) {
     hasError = true;
   } finally {

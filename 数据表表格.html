@@ -1,0 +1,241 @@
+ ```html
+  <!DOCTYPE html>
+  <html lang="zh-CN">
+  <head>
+  <meta charset="UTF-8" />
+  <title>数据库表结构设计</title>
+  <style>
+    body {
+      font-family: "SimSun", "宋体", serif;
+      background: #fff;
+      color: #000;
+      margin: 24px;
+    }
+
+    .table-block {
+      margin-bottom: 42px;
+      page-break-inside: avoid;
+    }
+
+    .table-title {
+      text-align: center;
+      font-size: 24px;
+      margin-bottom: 10px;
+      font-weight: normal;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+      font-size: 20px;
+    }
+
+    th, td {
+      border: 1px solid #000;
+      padding: 8px 6px;
+      text-align: center;
+      vertical-align: middle;
+      word-break: break-word;
+      line-height: 1.45;
+    }
+
+    th {
+      font-weight: bold;
+    }
+
+    .col-name { width: 18%; }
+    .col-type { width: 14%; }
+    .col-length { width: 12%; }
+    .col-desc { width: 32%; }
+    .col-key { width: 10%; }
+    .col-default { width: 14%; }
+  </style>
+  </head>
+  <body>
+
+  <div class="table-block">
+    <div class="table-title">表3-1 用户表（user）</div>
+    <table>
+      <thead>
+        <tr>
+          <th class="col-name">字段名称</th>
+          <th class="col-type">类型</th>
+          <th class="col-length">长度</th>
+          <th class="col-desc">字段说明</th>
+          <th class="col-key">主键</th>
+          <th class="col-default">默认值</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>id</td><td>int</td><td>-</td><td>用户唯一标识</td><td>主键</td><td>-</td></tr>
+        <tr><td>username</td><td>varchar</td><td>64</td><td>用户名</td><td>-</td><td>-</td></tr>
+        <tr><td>email</td><td>varchar</td><td>255</td><td>邮箱</td><td>-</td><td>NULL</td></tr>
+        <tr><td>phone</td><td>varchar</td><td>32</td><td>手机号</td><td>-</td><td>NULL</td></tr>
+        <tr><td>password</td><td>varchar</td><td>255</td><td>哈希后的密码</td><td>-</td><td>-</td></tr>
+        <tr><td>role</td><td>varchar</td><td>32</td><td>用户角色</td><td>-</td><td>user</td></tr>
+        <tr><td>preference_tags</td><td>varchar</td><td>512</td><td>用户兴趣标签</td><td>-</td><td>NULL</td></tr>
+        <tr><td>create_time</td><td>datetime</td><td>-</td><td>注册时间</td><td>-</td><td>CURRENT_TIMESTAMP</td></tr>
+        <tr><td>last_login_time</td><td>datetime</td><td>-</td><td>最近登录时间</td><td>-</td><td>NULL</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="table-block">
+    <div class="table-title">表3-2 文章表（article）</div>
+    <table>
+      <thead>
+        <tr>
+          <th class="col-name">字段名称</th>
+          <th class="col-type">类型</th>
+          <th class="col-length">长度</th>
+          <th class="col-desc">字段说明</th>
+          <th class="col-key">主键</th>
+          <th class="col-default">默认值</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>id</td><td>int</td><td>-</td><td>文章唯一标识</td><td>主键</td><td>-</td></tr>
+        <tr><td>author_id</td><td>int</td><td>-</td><td>作者用户ID</td><td>-</td><td>-</td></tr>
+        <tr><td>title</td><td>varchar</td><td>255</td><td>文章标题</td><td>-</td><td>-</td></tr>
+        <tr><td>content</td><td>text</td><td>-</td><td>Markdown原文内容</td><td>-</td><td>-</td></tr>
+        <tr><td>html_content</td><td>text</td><td>-</td><td>渲染后的HTML内容</td><td>-</td><td>-</td></tr>
+        <tr><td>summary</td><td>varchar</td><td>512</td><td>文章摘要</td><td>-</td><td>-</td></tr>
+        <tr><td>category</td><td>varchar</td><td>64</td><td>文章分类</td><td>-</td><td>-</td></tr>
+        <tr><td>tags</td><td>varchar</td><td>256</td><td>文章标签</td><td>-</td><td>NULL</td></tr>
+        <tr><td>status</td><td>varchar</td><td>32</td><td>文章状态</td><td>-</td><td>published</td></tr>
+        <tr><td>view_count</td><td>int</td><td>-</td><td>阅读量</td><td>-</td><td>0</td></tr>
+        <tr><td>like_count</td><td>int</td><td>-</td><td>点赞数</td><td>-</td><td>0</td></tr>
+        <tr><td>collect_count</td><td>int</td><td>-</td><td>收藏数</td><td>-</td><td>0</td></tr>
+        <tr><td>comment_count</td><td>int</td><td>-</td><td>评论数</td><td>-</td><td>0</td></tr>
+        <tr><td>is_deleted</td><td>boolean</td><td>-</td><td>软删除标记</td><td>-</td><td>false</td></tr>
+        <tr><td>create_time</td><td>datetime</td><td>-</td><td>创建时间</td><td>-</td><td>CURRENT_TIMESTAMP</td></tr>
+        <tr><td>update_time</td><td>datetime</td><td>-</td><td>更新时间</td><td>-</td><td>CURRENT_TIMESTAMP</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="table-block">
+    <div class="table-title">表3-3 用户行为表（user_behavior）</div>
+    <table>
+      <thead>
+        <tr>
+          <th class="col-name">字段名称</th>
+          <th class="col-type">类型</th>
+          <th class="col-length">长度</th>
+          <th class="col-desc">字段说明</th>
+          <th class="col-key">主键</th>
+          <th class="col-default">默认值</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>id</td><td>int</td><td>-</td><td>行为记录唯一标识</td><td>主键</td><td>-</td></tr>
+        <tr><td>user_id</td><td>int</td><td>-</td><td>用户ID，可为空</td><td>-</td><td>NULL</td></tr>
+        <tr><td>article_id</td><td>int</td><td>-</td><td>文章ID，可为空</td><td>-</td><td>NULL</td></tr>
+        <tr><td>behavior_type</td><td>varchar</td><td>32</td><td>行为类型</td><td>-</td><td>-</td></tr>
+        <tr><td>read_duration</td><td>int</td><td>-</td><td>阅读时长（秒）</td><td>-</td><td>NULL</td></tr>
+        <tr><td>scroll_depth</td><td>float</td><td>-</td><td>页面滚动深度</td><td>-</td><td>NULL</td></tr>
+        <tr><td>keyword</td><td>varchar</td><td>255</td><td>搜索关键词</td><td>-</td><td>NULL</td></tr>
+        <tr><td>create_time</td><td>datetime</td><td>-</td><td>行为发生时间</td><td>-</td><td>CURRENT_TIMESTAMP</td></
+  tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="table-block">
+    <div class="table-title">表3-4 点赞关系表（article_like）</div>
+    <table>
+      <thead>
+        <tr>
+          <th class="col-name">字段名称</th>
+          <th class="col-type">类型</th>
+          <th class="col-length">长度</th>
+          <th class="col-desc">字段说明</th>
+          <th class="col-key">主键</th>
+          <th class="col-default">默认值</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>id</td><td>int</td><td>-</td><td>点赞记录唯一标识</td><td>主键</td><td>-</td></tr>
+        <tr><td>user_id</td><td>int</td><td>-</td><td>用户ID</td><td>-</td><td>-</td></tr>
+        <tr><td>article_id</td><td>int</td><td>-</td><td>文章ID</td><td>-</td><td>-</td></tr>
+        <tr><td>create_time</td><td>datetime</td><td>-</td><td>点赞时间</td><td>-</td><td>CURRENT_TIMESTAMP</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="table-block">
+    <div class="table-title">表3-5 收藏关系表（article_collect）</div>
+    <table>
+      <thead>
+        <tr>
+          <th class="col-name">字段名称</th>
+          <th class="col-type">类型</th>
+          <th class="col-length">长度</th>
+          <th class="col-desc">字段说明</th>
+          <th class="col-key">主键</th>
+          <th class="col-default">默认值</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>id</td><td>int</td><td>-</td><td>收藏记录唯一标识</td><td>主键</td><td>-</td></tr>
+        <tr><td>user_id</td><td>int</td><td>-</td><td>用户ID</td><td>-</td><td>-</td></tr>
+        <tr><td>article_id</td><td>int</td><td>-</td><td>文章ID</td><td>-</td><td>-</td></tr>
+        <tr><td>create_time</td><td>datetime</td><td>-</td><td>收藏时间</td><td>-</td><td>CURRENT_TIMESTAMP</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="table-block">
+    <div class="table-title">表3-6 评论表（comment）</div>
+    <table>
+      <thead>
+        <tr>
+          <th class="col-name">字段名称</th>
+          <th class="col-type">类型</th>
+          <th class="col-length">长度</th>
+          <th class="col-desc">字段说明</th>
+          <th class="col-key">主键</th>
+          <th class="col-default">默认值</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>id</td><td>int</td><td>-</td><td>评论唯一标识</td><td>主键</td><td>-</td></tr>
+        <tr><td>article_id</td><td>int</td><td>-</td><td>所属文章ID</td><td>-</td><td>-</td></tr>
+        <tr><td>user_id</td><td>int</td><td>-</td><td>评论用户ID</td><td>-</td><td>-</td></tr>
+        <tr><td>content</td><td>text</td><td>-</td><td>评论内容</td><td>-</td><td>-</td></tr>
+        <tr><td>parent_id</td><td>int</td><td>-</td><td>父评论ID</td><td>-</td><td>0</td></tr>
+        <tr><td>create_time</td><td>datetime</td><td>-</td><td>评论发布时间</td><td>-</td><td>CURRENT_TIMESTAMP</td></
+  tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="table-block">
+    <div class="table-title">表3-7 推荐记录表（recommendation）</div>
+    <table>
+      <thead>
+        <tr>
+          <th class="col-name">字段名称</th>
+          <th class="col-type">类型</th>
+          <th class="col-length">长度</th>
+          <th class="col-desc">字段说明</th>
+          <th class="col-key">主键</th>
+          <th class="col-default">默认值</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>id</td><td>int</td><td>-</td><td>推荐记录唯一标识</td><td>主键</td><td>-</td></tr>
+        <tr><td>user_id</td><td>int</td><td>-</td><td>被推荐用户ID，可为空</td><td>-</td><td>NULL</td></tr>
+        <tr><td>article_id</td><td>int</td><td>-</td><td>被推荐文章ID</td><td>-</td><td>-</td></tr>
+        <tr><td>recommend_type</td><td>varchar</td><td>32</td><td>推荐来源类型</td><td>-</td><td>-</td></tr>
+        <tr><td>recommend_score</td><td>float</td><td>-</td><td>推荐得分</td><td>-</td><td>0.0</td></tr>
+        <tr><td>is_clicked</td><td>boolean</td><td>-</td><td>是否被点击</td><td>-</td><td>false</td></tr>
+        <tr><td>create_time</td><td>datetime</td><td>-</td><td>推荐曝光时间</td><td>-</td><td>CURRENT_TIMESTAMP</td></
+  tr>
+      </tbody>
+    </table>
+  </div>
+
+  </body>
+  </html>
