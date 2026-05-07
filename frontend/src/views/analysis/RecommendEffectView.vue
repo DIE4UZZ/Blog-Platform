@@ -74,7 +74,7 @@
 
       <SectionCard title="推荐来源分布">
         <div v-if="sourceBreakdown.length === 0" class="meta-text">当前时间范围暂无来源分布数据。</div>
-        <div v-else class="analysis-split analysis-split--stack">
+        <div v-else class="source-layout">
           <div class="analysis-split__list">
             <div v-for="item in sourceBreakdown" :key="item.recommend_type" class="source-item">
               <div class="source-item__head">
@@ -89,8 +89,15 @@
               </div>
             </div>
           </div>
-          <div class="analysis-split__chart">
-            <v-chart class="analysis-chart" :option="sourceChartOption" autoresize />
+          <div class="source-charts">
+            <div class="source-chart-card">
+              <p class="source-chart-card__title">来源曝光对比</p>
+              <v-chart class="analysis-chart source-chart" :option="sourceExposureChartOption" autoresize />
+            </div>
+            <div class="source-chart-card">
+              <p class="source-chart-card__title">点击率与转化率对比</p>
+              <v-chart class="analysis-chart source-chart" :option="sourceRateChartOption" autoresize />
+            </div>
           </div>
         </div>
       </SectionCard>
@@ -314,22 +321,21 @@ const chartOption = computed(() => {
   };
 });
 
-const sourceChartOption = computed(() => {
+const sourceExposureChartOption = computed(() => {
   const names = sourceBreakdown.value.map((item) => recommendTypeLabel(item.recommend_type));
   const impressions = sourceBreakdown.value.map((item) => Number(item.impressions || 0));
-  const pieData = sourceBreakdown.value.map((item) => ({
-    name: recommendTypeLabel(item.recommend_type),
-    value: Number(item.impressions || 0),
-  }));
 
   return {
-    tooltip: { trigger: "item" },
-    legend: { bottom: 0, data: names },
-    grid: { left: 28, right: 24, top: 20, bottom: 80 },
+    tooltip: { trigger: "axis" },
+    grid: { left: 36, right: 18, top: 24, bottom: 54 },
     xAxis: {
       type: "category",
       data: names,
-      axisLabel: { color: "#64748b", rotate: 18 },
+      axisLabel: {
+        color: "#64748b",
+        interval: 0,
+        rotate: names.length > 3 ? 18 : 0,
+      },
       axisLine: { lineStyle: { color: "rgba(148,163,184,0.6)" } },
     },
     yAxis: {
@@ -343,7 +349,7 @@ const sourceChartOption = computed(() => {
         name: "来源曝光",
         type: "bar",
         data: impressions,
-        barMaxWidth: 28,
+        barMaxWidth: 34,
         itemStyle: {
           color: {
             type: "linear",
@@ -359,15 +365,71 @@ const sourceChartOption = computed(() => {
           borderRadius: [8, 8, 0, 0],
         },
       },
+    ],
+  };
+});
+
+const sourceRateChartOption = computed(() => {
+  const names = sourceBreakdown.value.map((item) => recommendTypeLabel(item.recommend_type));
+  const ctrValues = sourceBreakdown.value.map((item) => Number(item.ctr || 0));
+  const conversionValues = sourceBreakdown.value.map((item) => Number(item.conversion || 0));
+
+  return {
+    tooltip: {
+      trigger: "axis",
+      formatter(params) {
+        const lines = params.map(
+          (item) => `${item.marker}${item.seriesName}: ${toPercentText(item.value)}`
+        );
+        return [`<strong>${params[0]?.axisValue || ""}</strong>`, ...lines].join("<br/>");
+      },
+    },
+    legend: { top: 0, data: ["点击率", "转化率"] },
+    grid: { left: 36, right: 18, top: 54, bottom: 54 },
+    xAxis: {
+      type: "category",
+      data: names,
+      axisLabel: {
+        color: "#64748b",
+        interval: 0,
+        rotate: names.length > 3 ? 18 : 0,
+      },
+      axisLine: { lineStyle: { color: "rgba(148,163,184,0.6)" } },
+    },
+    yAxis: {
+      type: "value",
+      name: "比例",
+      min: 0,
+      max: 1,
+      axisLabel: {
+        color: "#64748b",
+        formatter: (value) => `${Math.round(Number(value) * 100)}%`,
+      },
+      splitLine: { lineStyle: { color: "rgba(226,232,240,0.85)" } },
+    },
+    series: [
       {
-        name: "来源占比",
-        type: "pie",
-        radius: ["36%", "58%"],
-        center: ["78%", "34%"],
-        label: { formatter: "{b}\n{d}%" },
-        data: pieData,
+        name: "点击率",
+        type: "bar",
+        data: ctrValues,
+        barMaxWidth: 24,
+        itemStyle: {
+          color: "#2563eb",
+          borderRadius: [7, 7, 0, 0],
+        },
+      },
+      {
+        name: "转化率",
+        type: "bar",
+        data: conversionValues,
+        barMaxWidth: 24,
+        itemStyle: {
+          color: "#f59e0b",
+          borderRadius: [7, 7, 0, 0],
+        },
       },
     ],
+    animationDuration: 700,
   };
 });
 
@@ -470,6 +532,36 @@ onMounted(async () => {
   gap: 10px;
 }
 
+.source-layout {
+  display: grid;
+  gap: 20px;
+  grid-template-columns: minmax(280px, 0.95fr) minmax(0, 1.35fr);
+  align-items: start;
+}
+
+.source-charts {
+  display: grid;
+  gap: 16px;
+}
+
+.source-chart-card {
+  padding: 14px 16px 10px;
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.source-chart-card__title {
+  margin: 0 0 8px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.source-chart {
+  height: 260px;
+}
+
 .source-item {
   padding: 14px 16px;
   border: 1px solid rgba(226, 232, 240, 0.9);
@@ -505,5 +597,11 @@ onMounted(async () => {
   gap: 8px 16px;
   color: #475569;
   font-size: 0.86rem;
+}
+
+@media (max-width: 980px) {
+  .source-layout {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

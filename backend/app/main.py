@@ -15,8 +15,10 @@ from backend.app.routers import (
     behavior,
     comment,
     interaction,
+    library,
     rank,
     recommend,
+    social,
     upload,
     user,
 )
@@ -45,6 +47,8 @@ def create_app() -> FastAPI:
     app.include_router(behavior.router, prefix="/api")
     app.include_router(recommend.router, prefix="/api")
     app.include_router(analysis.router, prefix="/api")
+    app.include_router(social.router, prefix="/api")
+    app.include_router(library.router, prefix="/api")
     app.include_router(rank.router, prefix="/api")
     app.include_router(upload.router, prefix="/api")
     app.include_router(admin.router, prefix="/api")

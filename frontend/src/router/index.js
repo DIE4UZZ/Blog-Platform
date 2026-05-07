@@ -6,6 +6,8 @@ import ArticleDetailView from "../views/ArticleDetailView.vue";
 import EditorView from "../views/EditorView.vue";
 import ProfileView from "../views/ProfileView.vue";
 import AnalysisView from "../views/AnalysisView.vue";
+import FollowingFeedView from "../views/FollowingFeedView.vue";
+import NotificationsView from "../views/NotificationsView.vue";
 import ReadTrendView from "../views/analysis/ReadTrendView.vue";
 import RecommendEffectView from "../views/analysis/RecommendEffectView.vue";
 import UserPortraitView from "../views/analysis/UserPortraitView.vue";
@@ -51,6 +53,18 @@ function createAppRouter() {
         name: "profile",
         component: ProfileView,
         meta: { transition: "slide-right", requiresAuth: true },
+      },
+      {
+        path: "/following",
+        name: "following",
+        component: FollowingFeedView,
+        meta: { transition: "slide-left", requiresAuth: true },
+      },
+      {
+        path: "/notifications",
+        name: "notifications",
+        component: NotificationsView,
+        meta: { transition: "slide-left", requiresAuth: true },
       },
       {
         path: "/analysis",

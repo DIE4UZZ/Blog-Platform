@@ -11,6 +11,7 @@ from backend.app.models.article import Article
 from backend.app.models.behavior import UserBehavior
 from backend.app.models.comment import Comment
 from backend.app.models.user import User
+from backend.app.routers.social import create_comment_notifications
 from backend.app.schemas.comment import CommentCreateRequest
 
 router = APIRouter()
@@ -32,6 +33,7 @@ def create_comment(
     if not article:
         raise HTTPException(status_code=404, detail="文章不存在")
 
+    parent_comment = None
     if payload.parent_id:
         parent_comment = (
             db.query(Comment)
@@ -64,6 +66,7 @@ def create_comment(
     )
     db.commit()
     db.refresh(comment)
+    create_comment_notifications(db, article, comment, parent_comment)
     return success_response(
         {
             "comment_id": comment.id,

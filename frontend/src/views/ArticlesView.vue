@@ -1,6 +1,18 @@
 <template>
   <AppLayout>
+    <section class="hero-block hero-compact">
+      <p class="hero-kicker">Content Library</p>
+      <h1 class="hero-title">按主题、标签与热度快速发现内容</h1>
+      <p class="hero-subtitle">
+        这里更适合进行主动检索和有目的的浏览，你可以按时间、热度、分类和标签重组内容列表。
+      </p>
+    </section>
+
     <SectionCard title="文章发现">
+      <template #actions>
+        <span class="meta-text">当前共 {{ total }} 篇文章</span>
+      </template>
+      <p class="section-intro">筛选条件支持组合使用，适合做专题浏览、趋势观察和内容回查。</p>
       <el-form class="filter-bar" label-position="top">
         <el-form-item label="关键词">
           <el-input v-model="filters.keyword" placeholder="搜索标题或内容关键字" />
@@ -23,7 +35,7 @@
       </el-form>
 
       <div v-if="isLoading" class="skeleton-list">
-        <div class="skeleton-line" v-for="item in 5" :key="item"></div>
+        <div v-for="item in 5" :key="item" class="skeleton-line"></div>
       </div>
       <div v-else-if="articles.length === 0">
         <EmptyState title="没有找到文章" message="尝试更换关键词或筛选条件。" />
@@ -36,6 +48,20 @@
           </div>
           <h3 class="list-card__title">{{ item.title }}</h3>
           <p class="list-card__summary">{{ item.summary || "暂无摘要" }}</p>
+          <div v-if="item.tags?.length" class="tag-list">
+            <span
+              v-for="tag in item.tags.slice(0, 4)"
+              :key="`${item.article_id}-${tag}`"
+              class="tag-chip tag-chip--soft"
+            >
+              {{ tag }}
+            </span>
+          </div>
+          <div class="list-card__stats">
+            <span class="list-stat">阅读 {{ item.view_count || 0 }}</span>
+            <span class="list-stat">点赞 {{ item.like_count || 0 }}</span>
+            <span class="list-stat">收藏 {{ item.collect_count || 0 }}</span>
+          </div>
           <div class="list-card__footer">
             <span class="meta-text">作者：{{ item.author?.username || "匿名" }}</span>
             <router-link class="text-link" :to="`/articles/${item.article_id}`">
@@ -80,21 +106,11 @@ const articles = ref([]);
 const isLoading = ref(false);
 const isLoadingMore = ref(false);
 
-/**
- * Format datetime string to readable date.
- * @param {string} value Datetime string.
- * @returns {string} Formatted date text.
- */
 function formatDate(value) {
   if (!value) return "未知时间";
   return value.split(" ")[0];
 }
 
-/**
- * Load article list with current filters.
- * @param {boolean} resetPage Whether to reset pagination.
- * @returns {Promise<void>} No return value.
- */
 async function loadArticles(resetPage) {
   if (resetPage) {
     page.value = 1;
@@ -124,32 +140,18 @@ async function loadArticles(resetPage) {
   }
 }
 
-/**
- * Trigger search with current filters.
- * @returns {Promise<void>} No return value.
- */
 async function handleSearch() {
   trackSearch(filters.keyword);
   await loadArticles(true);
 }
 
-/**
- * Load next page of articles.
- * @returns {Promise<void>} No return value.
- */
 async function loadMore() {
   if (articles.value.length >= total.value) return;
   page.value += 1;
   await loadArticles(false);
 }
 
-/**
- * Initialize article list loading.
- * @returns {void} No return value.
- */
-function handleMounted() {
+onMounted(() => {
   loadArticles(true);
-}
-
-onMounted(handleMounted);
+});
 </script>

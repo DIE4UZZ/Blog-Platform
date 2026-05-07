@@ -1,5 +1,6 @@
 <template>
   <div class="empty-state">
+    <span class="empty-state__icon" aria-hidden="true"></span>
     <p class="empty-state__title">{{ title }}</p>
     <p class="empty-state__message">{{ message }}</p>
     <slot />

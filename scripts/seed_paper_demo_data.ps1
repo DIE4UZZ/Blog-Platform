@@ -9,7 +9,8 @@ param(
     [string]$DemoUsername = "paper_demo_user",
     [string]$DemoEmail = "paper_demo_user@example.com",
     [string]$DemoPassword = "123456",
-    [string]$PreferenceTags = "ai,recommendation,analytics,frontend"
+    [string]$PreferenceTags = "ai,recommendation,analytics,frontend",
+    [int]$SeedDays = 30
 )
 
 $ErrorActionPreference = "Stop"
@@ -59,45 +60,113 @@ function Invoke-MySqlScalarList {
     return @($output | Where-Object { $_ -and $_.Trim() })
 }
 
-Write-Host "Ensuring demo account exists..."
-try {
-    $null = Invoke-BlogApi -Method POST -Url "$BaseUrl/user/register" -Body @{
-        username = $DemoUsername
-        email = $DemoEmail
-        password = $DemoPassword
+function Invoke-MySqlScalar {
+    param([string]$Sql)
+    $values = Invoke-MySqlScalarList -Sql $Sql
+    if ($values.Count -eq 0) {
+        return $null
     }
-} catch {
-    # Registration can fail when the user already exists. Login below is the source of truth.
+    return $values[0]
 }
 
-$loginResult = Invoke-BlogApi -Method POST -Url "$BaseUrl/user/login" -Body @{
-    account = $DemoUsername
-    password = $DemoPassword
-}
-if ($loginResult.code -ne 0) {
-    throw "Unable to login with demo account: $($loginResult.message)"
+function Ensure-Account {
+    param(
+        [string]$Username,
+        [string]$Email,
+        [string]$Password,
+        [string]$Preference = ""
+    )
+
+    try {
+        $null = Invoke-BlogApi -Method POST -Url "$BaseUrl/user/register" -Body @{
+            username = $Username
+            email = $Email
+            password = $Password
+        }
+    } catch {
+        # Re-registration is expected on repeated runs.
+    }
+
+    $loginResult = Invoke-BlogApi -Method POST -Url "$BaseUrl/user/login" -Body @{
+        account = $Username
+        password = $Password
+    }
+    if ($loginResult.code -ne 0) {
+        throw "Unable to login with account $Username: $($loginResult.message)"
+    }
+
+    if ($Preference) {
+        Invoke-BlogApi -Method PUT -Url "$BaseUrl/user/preference" -Body @{
+            preference_tags = $Preference
+        } -Token ([string]$loginResult.data.token) | Out-Null
+    }
+
+    return $loginResult
 }
 
-$demoUserId = [int]$loginResult.data.user_id
-$demoToken = [string]$loginResult.data.token
-Invoke-BlogApi -Method PUT -Url "$BaseUrl/user/preference" -Body @{ preference_tags = $PreferenceTags } -Token $demoToken | Out-Null
+Write-Host "Ensuring demo account exists..."
+$demoLogin = Ensure-Account -Username $DemoUsername -Email $DemoEmail -Password $DemoPassword -Preference $PreferenceTags
+$demoUserId = [int]$demoLogin.data.user_id
+$demoToken = [string]$demoLogin.data.token
+
+$socialUserSpecs = @(
+    @{ Username = "paper_demo_author_ai"; Email = "paper_demo_author_ai@example.com"; PreferenceTags = "ai,recommendation,semantic" },
+    @{ Username = "paper_demo_author_frontend"; Email = "paper_demo_author_frontend@example.com"; PreferenceTags = "frontend,vue,responsive" },
+    @{ Username = "paper_demo_author_data"; Email = "paper_demo_author_data@example.com"; PreferenceTags = "analytics,visualization,behavior" },
+    @{ Username = "paper_demo_reader_a"; Email = "paper_demo_reader_a@example.com"; PreferenceTags = "ai,analytics,blog" },
+    @{ Username = "paper_demo_reader_b"; Email = "paper_demo_reader_b@example.com"; PreferenceTags = "frontend,design,content" }
+)
+
+Write-Host "Ensuring supporting social accounts exist..."
+foreach ($spec in $socialUserSpecs) {
+    $null = Ensure-Account -Username $spec.Username -Email $spec.Email -Password $DemoPassword -Preference $spec.PreferenceTags
+}
+
+$userIdMap = @{}
+$userIdMap[$DemoUsername] = $demoUserId
+foreach ($spec in $socialUserSpecs) {
+    $userId = Invoke-MySqlScalar -Sql "SELECT id FROM user WHERE username = $(Escape-Sql $($spec.Username)) LIMIT 1;"
+    if ($null -eq $userId) {
+        throw "Unable to resolve id for $($spec.Username)"
+    }
+    $userIdMap[$spec.Username] = [int]$userId
+}
+
+$authorAiId = [int]$userIdMap["paper_demo_author_ai"]
+$authorFrontendId = [int]$userIdMap["paper_demo_author_frontend"]
+$authorDataId = [int]$userIdMap["paper_demo_author_data"]
+$readerAId = [int]$userIdMap["paper_demo_reader_a"]
+$readerBId = [int]$userIdMap["paper_demo_reader_b"]
+$allDemoUserIds = @(
+    $demoUserId,
+    $authorAiId,
+    $authorFrontendId,
+    $authorDataId,
+    $readerAId,
+    $readerBId
+)
+$allDemoUserIdsSql = ($allDemoUserIds | Sort-Object -Unique) -join ","
 
 Write-Host "Cleaning previous demo data..."
 $cleanupSql = @"
-SET @demo_user_id := (SELECT id FROM user WHERE username = $(Escape-Sql $DemoUsername) LIMIT 1);
-DELETE FROM recommendation WHERE user_id = @demo_user_id;
-DELETE FROM user_behavior WHERE user_id = @demo_user_id;
-DELETE FROM article_like WHERE article_id IN (SELECT id FROM (SELECT id FROM article WHERE author_id = @demo_user_id AND title LIKE 'Paper Demo - %') AS t);
-DELETE FROM article_collect WHERE article_id IN (SELECT id FROM (SELECT id FROM article WHERE author_id = @demo_user_id AND title LIKE 'Paper Demo - %') AS t);
-DELETE FROM comment WHERE article_id IN (SELECT id FROM (SELECT id FROM article WHERE author_id = @demo_user_id AND title LIKE 'Paper Demo - %') AS t);
-DELETE FROM user_behavior WHERE article_id IN (SELECT id FROM (SELECT id FROM article WHERE author_id = @demo_user_id AND title LIKE 'Paper Demo - %') AS t);
-DELETE FROM article WHERE author_id = @demo_user_id AND title LIKE 'Paper Demo - %';
-UPDATE user SET preference_tags = $(Escape-Sql $PreferenceTags) WHERE id = @demo_user_id;
+DELETE FROM recommendation WHERE user_id IN ($allDemoUserIdsSql);
+DELETE FROM user_notification WHERE user_id IN ($allDemoUserIdsSql) OR actor_user_id IN ($allDemoUserIdsSql);
+DELETE FROM user_follow WHERE follower_id IN ($allDemoUserIdsSql) OR following_id IN ($allDemoUserIdsSql);
+DELETE FROM article_like WHERE user_id IN ($allDemoUserIdsSql);
+DELETE FROM article_collect WHERE user_id IN ($allDemoUserIdsSql);
+DELETE FROM comment WHERE user_id IN ($allDemoUserIdsSql);
+DELETE FROM user_behavior WHERE user_id IN ($allDemoUserIdsSql);
+DELETE FROM article_like WHERE article_id IN (SELECT id FROM (SELECT id FROM article WHERE author_id IN ($allDemoUserIdsSql) AND (title LIKE 'Paper Demo - %' OR title LIKE 'Paper Social - %')) AS t);
+DELETE FROM article_collect WHERE article_id IN (SELECT id FROM (SELECT id FROM article WHERE author_id IN ($allDemoUserIdsSql) AND (title LIKE 'Paper Demo - %' OR title LIKE 'Paper Social - %')) AS t);
+DELETE FROM comment WHERE article_id IN (SELECT id FROM (SELECT id FROM article WHERE author_id IN ($allDemoUserIdsSql) AND (title LIKE 'Paper Demo - %' OR title LIKE 'Paper Social - %')) AS t);
+DELETE FROM user_behavior WHERE article_id IN (SELECT id FROM (SELECT id FROM article WHERE author_id IN ($allDemoUserIdsSql) AND (title LIKE 'Paper Demo - %' OR title LIKE 'Paper Social - %')) AS t);
+DELETE FROM article WHERE author_id IN ($allDemoUserIdsSql) AND (title LIKE 'Paper Demo - %' OR title LIKE 'Paper Social - %');
+UPDATE user SET preference_tags = $(Escape-Sql $PreferenceTags) WHERE id = $demoUserId;
 "@
 Invoke-MySqlQuery -Sql $cleanupSql
 
 Write-Host "Creating demo articles..."
-$articleTemplates = @(
+$demoArticleTemplates = @(
     @{ Title = "Paper Demo - Hybrid Recommendation Practice"; Category = "ai"; Tags = "ai,recommendation,tfidf"; Summary = "A practical article about hybrid recommendation and profile modeling."; Content = "# Hybrid Recommendation`n`nThis demo article explains hybrid recommendation, semantic matching, collaborative filtering, and ranking strategy." },
     @{ Title = "Paper Demo - Vue Dashboard Design"; Category = "frontend"; Tags = "vue,frontend,analytics"; Summary = "A practical article about Vue dashboard layouts and charts."; Content = "# Vue Dashboard`n`nThis demo article explains dashboard information design, card grouping, and chart arrangement." },
     @{ Title = "Paper Demo - Reading Behavior Analytics"; Category = "analytics"; Tags = "analytics,behavior,echarts"; Summary = "A practical article about reading duration, scroll depth, and event tracking."; Content = "# Reading Behavior Analytics`n`nThis demo article explains reading duration, scroll depth, and behavior event reporting." },
@@ -108,11 +177,20 @@ $articleTemplates = @(
     @{ Title = "Paper Demo - Recommendation Evaluation"; Category = "analytics"; Tags = "evaluation,recommendation,ctr"; Summary = "A practical article about click-through rate, conversion, and recommendation evaluation."; Content = "# Recommendation Evaluation`n`nThis demo article explains CTR, conversion, source analysis, and effect comparison." }
 )
 
+$socialArticleTemplates = @(
+    @{ AuthorId = $authorAiId; Title = "Paper Social - Semantic Ranking Diary"; Category = "ai"; Tags = "semantic,recommendation,ranking"; Summary = "Recent notes on semantic ranking, candidate recall, and recommendation ordering."; Content = "# Semantic Ranking Diary`n`nA followed author shares recent progress on semantic ranking and recommendation ordering."; DayOffset = 0; Hour = 9; Minute = 10 },
+    @{ AuthorId = $authorFrontendId; Title = "Paper Social - Mobile Card Layout Notes"; Category = "frontend"; Tags = "responsive,layout,vue"; Summary = "A design note on adaptive card layout, spacing, and mobile reading experience."; Content = "# Mobile Card Layout Notes`n`nThis article focuses on responsive layout details for the blog platform."; DayOffset = 1; Hour = 11; Minute = 25 },
+    @{ AuthorId = $authorDataId; Title = "Paper Social - Reader Activity Heatmap"; Category = "analytics"; Tags = "analytics,heatmap,behavior"; Summary = "A practical walkthrough for active-hour heatmaps and user behavior visualization."; Content = "# Reader Activity Heatmap`n`nThis article discusses reader activity windows and heatmap indicators."; DayOffset = 2; Hour = 14; Minute = 40 },
+    @{ AuthorId = $authorAiId; Title = "Paper Social - Cold Start Tradeoffs"; Category = "ai"; Tags = "cold-start,recommendation,profile"; Summary = "Thoughts about balancing hot content, profile tags, and new-article exposure."; Content = "# Cold Start Tradeoffs`n`nThis article discusses cold-start strategies for a lightweight blog recommender."; DayOffset = 4; Hour = 16; Minute = 5 },
+    @{ AuthorId = $authorFrontendId; Title = "Paper Social - Dashboard Readability Review"; Category = "frontend"; Tags = "dashboard,ux,charts"; Summary = "A review of dashboard readability, color hierarchy, and chart comparison."; Content = "# Dashboard Readability Review`n`nThis article focuses on information hierarchy in analytics dashboards."; DayOffset = 5; Hour = 10; Minute = 35 },
+    @{ AuthorId = $authorDataId; Title = "Paper Social - Notification Interaction Metrics"; Category = "analytics"; Tags = "notification,ctr,analytics"; Summary = "A short note about measuring notification exposure, click-through, and conversion."; Content = "# Notification Interaction Metrics`n`nThis article explains how notification metrics can support content operations."; DayOffset = 6; Hour = 18; Minute = 20 }
+)
+
 $insertArticleRows = New-Object System.Collections.Generic.List[string]
-for ($i = 0; $i -lt $articleTemplates.Count; $i++) {
-    $daysAgo = 13 - $i
+for ($i = 0; $i -lt $demoArticleTemplates.Count; $i++) {
+    $daysAgo = [math]::Max(($SeedDays - 1) - ($demoArticleTemplates.Count - 1) + $i, 0)
     $createTime = (Get-Date).ToUniversalTime().AddDays(-$daysAgo).AddHours(8 + ($i % 4)).AddMinutes(12 + ($i * 5))
-    $template = $articleTemplates[$i]
+    $template = $demoArticleTemplates[$i]
     $html = "<h1>$($template.Title)</h1><p>$($template.Summary)</p>"
     $insertArticleRows.Add("(" +
         "$demoUserId," +
@@ -128,6 +206,25 @@ for ($i = 0; $i -lt $articleTemplates.Count; $i++) {
         "$(Escape-Sql ($createTime.ToString('yyyy-MM-dd HH:mm:ss')))" +
     ")")
 }
+
+foreach ($template in $socialArticleTemplates) {
+    $createTime = (Get-Date).ToUniversalTime().AddDays(-[int]$template.DayOffset).Date.AddHours([int]$template.Hour).AddMinutes([int]$template.Minute)
+    $html = "<h1>$($template.Title)</h1><p>$($template.Summary)</p>"
+    $insertArticleRows.Add("(" +
+        "$($template.AuthorId)," +
+        "$(Escape-Sql $template.Title)," +
+        "$(Escape-Sql $template.Content)," +
+        "$(Escape-Sql $html)," +
+        "$(Escape-Sql $template.Summary)," +
+        "$(Escape-Sql $template.Category)," +
+        "$(Escape-Sql $template.Tags)," +
+        "'published'," +
+        "0,0,0,0,0," +
+        "$(Escape-Sql ($createTime.ToString('yyyy-MM-dd HH:mm:ss')))," +
+        "$(Escape-Sql ($createTime.ToString('yyyy-MM-dd HH:mm:ss')))" +
+    ")")
+}
+
 $insertArticleSql = "INSERT INTO article (author_id, title, content, html_content, summary, category, tags, status, view_count, like_count, collect_count, comment_count, is_deleted, create_time, update_time) VALUES " + ($insertArticleRows -join ",") + ";"
 Invoke-MySqlQuery -Sql $insertArticleSql
 
@@ -136,26 +233,41 @@ if ($demoArticleIds.Count -lt 6) {
     throw "Failed to create demo articles."
 }
 
-$readerIds = Invoke-MySqlScalarList -Sql "SELECT id FROM user WHERE id <> $demoUserId ORDER BY id LIMIT 10;"
+$socialArticleIdMap = @{}
+foreach ($template in $socialArticleTemplates) {
+    $articleId = Invoke-MySqlScalar -Sql "SELECT id FROM article WHERE author_id = $($template.AuthorId) AND title = $(Escape-Sql $($template.Title)) ORDER BY id DESC LIMIT 1;"
+    if ($null -eq $articleId) {
+        throw "Failed to resolve article id for $($template.Title)"
+    }
+    $socialArticleIdMap[$template.Title] = [int]$articleId
+}
+
+$readerIds = Invoke-MySqlScalarList -Sql "SELECT id FROM user WHERE id <> $demoUserId ORDER BY id LIMIT 12;"
+if ($readerIds.Count -eq 0) {
+    throw "At least one additional user is required for seeding."
+}
+
 $globalArticleIds = Invoke-MySqlScalarList -Sql "SELECT id FROM article WHERE is_deleted = 0 AND status = 'published' ORDER BY id LIMIT 30;"
-$externalArticleIds = Invoke-MySqlScalarList -Sql "SELECT id FROM article WHERE is_deleted = 0 AND status = 'published' AND author_id <> $demoUserId ORDER BY id LIMIT 20;"
+$externalArticleIds = Invoke-MySqlScalarList -Sql "SELECT id FROM article WHERE is_deleted = 0 AND status = 'published' AND author_id <> $demoUserId ORDER BY id LIMIT 30;"
 if ($externalArticleIds.Count -eq 0) {
     $externalArticleIds = $demoArticleIds
 }
 
-Write-Host "Generating behavior, interaction, and recommendation records..."
+Write-Host "Generating analytics, follow, feed, and notification data..."
 $behaviorRows = New-Object System.Collections.Generic.List[string]
 $likeRows = New-Object System.Collections.Generic.List[string]
 $collectRows = New-Object System.Collections.Generic.List[string]
 $commentRows = New-Object System.Collections.Generic.List[string]
 $recommendationRows = New-Object System.Collections.Generic.List[string]
+$followRows = New-Object System.Collections.Generic.List[string]
+$notificationRows = New-Object System.Collections.Generic.List[string]
 $likeSeen = New-Object 'System.Collections.Generic.HashSet[string]'
 $collectSeen = New-Object 'System.Collections.Generic.HashSet[string]'
 
 for ($articleIndex = 0; $articleIndex -lt $demoArticleIds.Count; $articleIndex++) {
     $articleId = [int]$demoArticleIds[$articleIndex]
-    for ($dayOffset = 0; $dayOffset -lt 14; $dayOffset++) {
-        $readsToday = 2 + (($articleIndex + $dayOffset) % 4)
+    for ($dayOffset = 0; $dayOffset -lt $SeedDays; $dayOffset++) {
+        $readsToday = 2 + (($articleIndex + $dayOffset) % 5)
         for ($readIndex = 0; $readIndex -lt $readsToday; $readIndex++) {
             $readerId = [int]$readerIds[($articleIndex + $dayOffset + $readIndex) % $readerIds.Count]
             $readTime = (Get-Date).ToUniversalTime().AddDays(-$dayOffset).Date.AddHours(9 + (($articleIndex * 2 + $readIndex * 3) % 10)).AddMinutes(($readIndex * 11 + $articleIndex * 7) % 60)
@@ -185,7 +297,7 @@ for ($articleIndex = 0; $articleIndex -lt $demoArticleIds.Count; $articleIndex++
     }
 }
 
-for ($dayOffset = 0; $dayOffset -lt 14; $dayOffset++) {
+for ($dayOffset = 0; $dayOffset -lt $SeedDays; $dayOffset++) {
     $dayBase = (Get-Date).ToUniversalTime().AddDays(-$dayOffset).Date
     $recommendTypes = @("hybrid", "content_semantic", "collaborative_filtering", "cold_start", "new_article_cold_start")
     for ($recIndex = 0; $recIndex -lt $recommendTypes.Count; $recIndex++) {
@@ -213,9 +325,32 @@ for ($dayOffset = 0; $dayOffset -lt 14; $dayOffset++) {
     }
 }
 
-for ($dayOffset = 0; $dayOffset -lt 7; $dayOffset++) {
+for ($dayOffset = 0; $dayOffset -lt [math]::Min($SeedDays, 21); $dayOffset++) {
     $activityBase = (Get-Date).ToUniversalTime().AddDays(-$dayOffset).Date
-    $searchKeyword = @("hybrid ranking", "vue charts", "reading analytics", "user portrait", "responsive layout", "content ranking", "ctr analysis")[$dayOffset]
+    $keywords = @(
+        "hybrid ranking",
+        "vue charts",
+        "reading analytics",
+        "user portrait",
+        "responsive layout",
+        "content ranking",
+        "ctr analysis",
+        "tfidf recommend",
+        "blog behavior",
+        "dashboard design",
+        "semantic recall",
+        "collaborative score",
+        "author analytics",
+        "cold start",
+        "engagement rate",
+        "read duration",
+        "scroll depth",
+        "article similarity",
+        "heatmap active hour",
+        "category hotness",
+        "conversion trend"
+    )
+    $searchKeyword = $keywords[$dayOffset % $keywords.Count]
     $behaviorRows.Add("($demoUserId,NULL,'search',NULL,NULL,$(Escape-Sql $searchKeyword),$(Escape-Sql ($activityBase.AddHours(9).ToString('yyyy-MM-dd HH:mm:ss'))))")
     $behaviorRows.Add("($demoUserId,NULL,'page_view',NULL,NULL,$(Escape-Sql '/analysis/read-trend'),$(Escape-Sql ($activityBase.AddHours(9).AddMinutes(3).ToString('yyyy-MM-dd HH:mm:ss'))))")
     $behaviorRows.Add("($demoUserId,NULL,'page_leave',NULL,NULL,$(Escape-Sql '/analysis/read-trend'),$(Escape-Sql ($activityBase.AddHours(9).AddMinutes(17).ToString('yyyy-MM-dd HH:mm:ss'))))")
@@ -226,39 +361,3 @@ for ($dayOffset = 0; $dayOffset -lt 7; $dayOffset++) {
     $behaviorRows.Add("($demoUserId,$portraitArticleId,'like',NULL,NULL,NULL,$(Escape-Sql ($likeBehaviorTime.ToString('yyyy-MM-dd HH:mm:ss'))))")
     $behaviorRows.Add("($demoUserId,$portraitArticleId,'collect',NULL,NULL,NULL,$(Escape-Sql ($collectBehaviorTime.ToString('yyyy-MM-dd HH:mm:ss'))))")
 }
-
-$insertStatements = New-Object System.Collections.Generic.List[string]
-if ($behaviorRows.Count -gt 0) {
-    $insertStatements.Add("INSERT INTO user_behavior (user_id, article_id, behavior_type, read_duration, scroll_depth, keyword, create_time) VALUES " + ($behaviorRows -join ",") + ";")
-}
-if ($likeRows.Count -gt 0) {
-    $insertStatements.Add("INSERT INTO article_like (user_id, article_id, create_time) VALUES " + ($likeRows -join ",") + ";")
-}
-if ($collectRows.Count -gt 0) {
-    $insertStatements.Add("INSERT INTO article_collect (user_id, article_id, create_time) VALUES " + ($collectRows -join ",") + ";")
-}
-if ($commentRows.Count -gt 0) {
-    $insertStatements.Add("INSERT INTO comment (article_id, user_id, content, parent_id, create_time) VALUES " + ($commentRows -join ",") + ";")
-}
-if ($recommendationRows.Count -gt 0) {
-    $insertStatements.Add("INSERT INTO recommendation (user_id, article_id, recommend_type, recommend_score, is_clicked, create_time) VALUES " + ($recommendationRows -join ",") + ";")
-}
-
-$insertStatements.Add(@"
-UPDATE article a
-SET
-    a.view_count = (SELECT COUNT(*) FROM user_behavior b WHERE b.article_id = a.id AND b.behavior_type = 'read'),
-    a.like_count = (SELECT COUNT(*) FROM article_like l WHERE l.article_id = a.id),
-    a.collect_count = (SELECT COUNT(*) FROM article_collect c WHERE c.article_id = a.id),
-    a.comment_count = (SELECT COUNT(*) FROM comment m WHERE m.article_id = a.id),
-    a.update_time = UTC_TIMESTAMP()
-WHERE a.author_id = $demoUserId AND a.title LIKE 'Paper Demo - %';
-"@)
-
-Invoke-MySqlQuery -Sql ($insertStatements -join "`n")
-
-Write-Host "Demo data seeded successfully."
-Write-Host "Demo account:"
-Write-Host "  Username: $DemoUsername"
-Write-Host "  Password: $DemoPassword"
-Write-Host "  User ID : $demoUserId"

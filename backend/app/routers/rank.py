@@ -5,11 +5,13 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import desc, func
 from sqlalchemy.orm import Session
 
+from backend.app.core.deps import get_optional_user
 from backend.app.core.response import success_response
 from backend.app.db.session import get_db
 from backend.app.models.article import Article
 from backend.app.models.behavior import UserBehavior
 from backend.app.models.user import User
+from backend.app.models.user_follow import UserFollow
 
 router = APIRouter()
 
@@ -176,6 +178,7 @@ def hot_search(
 def recommend_follow(
     limit: int = 6,
     db: Session = Depends(get_db),
+    current_user: User | None = Depends(get_optional_user),
 ):
     """Get recommended creators list based on article performance."""
 
@@ -195,18 +198,33 @@ def recommend_follow(
         .limit(limit)
         .all()
     )
+    followed_user_ids = set()
+    if current_user:
+        followed_user_ids = {
+            int(row.following_id)
+            for row in db.query(UserFollow.following_id)
+            .filter(UserFollow.follower_id == current_user.id)
+            .all()
+        }
+
     data = []
     for row in rows:
         article_count = int(row.article_count or 0)
         view_count = int(row.view_count or 0)
+        follower_count = (
+            db.query(UserFollow)
+            .filter(UserFollow.following_id == row.user_id)
+            .count()
+        )
         data.append(
             {
                 "user_id": row.user_id,
                 "name": _format_user_name(row.username, row.email, row.phone),
-                "desc": f"{article_count} 篇文章 · {view_count} 阅读",
+                "desc": f"{article_count} 篇文章 · {view_count} 阅读 · {follower_count} 关注者",
                 "article_count": article_count,
                 "view_count": view_count,
-                "followed": False,
+                "follower_count": follower_count,
+                "followed": row.user_id in followed_user_ids,
             }
         )
     return success_response({"list": data})

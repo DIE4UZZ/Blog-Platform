@@ -4,11 +4,14 @@ from backend.app.db.base import Base
 from backend.app.db.session import engine
 from backend.app.models.article import Article
 from backend.app.models.article_collect import ArticleCollect
+from backend.app.models.article_read_later import ArticleReadLater
 from backend.app.models.article_like import ArticleLike
 from backend.app.models.behavior import UserBehavior
 from backend.app.models.comment import Comment
 from backend.app.models.recommendation import Recommendation
 from backend.app.models.user import User
+from backend.app.models.user_follow import UserFollow
+from backend.app.models.user_notification import UserNotification
 
 
 def _ensure_user_columns() -> None:

@@ -11,10 +11,13 @@ from backend.app.core.response import success_response
 from backend.app.db.session import get_db
 from backend.app.models.article import Article
 from backend.app.models.article_collect import ArticleCollect
+from backend.app.models.article_read_later import ArticleReadLater
 from backend.app.models.article_like import ArticleLike
 from backend.app.models.recommendation import Recommendation
 from backend.app.models.user import User
+from backend.app.models.user_follow import UserFollow
 from backend.app.routers.recommend import push_new_article_recommendations
+from backend.app.routers.social import create_new_article_notifications
 from backend.app.schemas.article import ArticleEditRequest, ArticlePublishRequest
 
 router = APIRouter()
@@ -112,10 +115,16 @@ def publish_article(
     db.commit()
     db.refresh(article)
     pushed_user_count = 0
+    notified_follower_count = 0
     if article.status == "published":
         pushed_user_count = push_new_article_recommendations(db, article)
+        notified_follower_count = create_new_article_notifications(db, current_user, article)
     return success_response(
-        {"article_id": article.id, "pushed_user_count": pushed_user_count},
+        {
+            "article_id": article.id,
+            "pushed_user_count": pushed_user_count,
+            "notified_follower_count": notified_follower_count,
+        },
         message="发布成功",
     )
 
@@ -146,6 +155,7 @@ def edit_article(
         raise HTTPException(status_code=404, detail="文章不存在")
     if article.author_id != current_user.id and current_user.role != "admin":
         raise HTTPException(status_code=403, detail="权限不足")
+    previous_status = article.status
     article.title = payload.title
     article.content = payload.content
     article.html_content = markdown(payload.content)
@@ -156,6 +166,9 @@ def edit_article(
     article.update_time = datetime.utcnow()
     db.add(article)
     db.commit()
+    if previous_status != "published" and article.status == "published":
+        push_new_article_recommendations(db, article)
+        create_new_article_notifications(db, article.author or current_user, article)
     return success_response({}, message="编辑成功")
 
 
@@ -222,6 +235,13 @@ def get_article_detail(
     db.commit()
     is_liked = False
     is_collected = False
+    is_saved_for_later = False
+    follower_count = (
+        db.query(UserFollow)
+        .filter(UserFollow.following_id == article.author_id)
+        .count()
+    )
+    is_followed_author = False
     if current_user:
         mark_recommendation_clicked(db, current_user.id, article.id)
         is_liked = (
@@ -242,6 +262,25 @@ def get_article_detail(
             .first()
             is not None
         )
+        is_saved_for_later = (
+            db.query(ArticleReadLater)
+            .filter(
+                ArticleReadLater.article_id == article.id,
+                ArticleReadLater.user_id == current_user.id,
+            )
+            .first()
+            is not None
+        )
+        if current_user.id != article.author_id:
+            is_followed_author = (
+                db.query(UserFollow)
+                .filter(
+                    UserFollow.follower_id == current_user.id,
+                    UserFollow.following_id == article.author_id,
+                )
+                .first()
+                is not None
+            )
     data = {
         "article_id": article.id,
         "title": article.title,
@@ -253,6 +292,8 @@ def get_article_detail(
         "author": {
             "user_id": article.author_id,
             "username": resolve_author_name(article.author),
+            "follower_count": follower_count,
+            "is_followed": is_followed_author,
         },
         "view_count": article.view_count,
         "like_count": article.like_count,
@@ -262,6 +303,7 @@ def get_article_detail(
         "update_time": article.update_time.strftime("%Y-%m-%d %H:%M:%S"),
         "is_liked": is_liked,
         "is_collected": is_collected,
+        "is_saved_for_later": is_saved_for_later,
     }
     return success_response(data)
 

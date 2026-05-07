@@ -63,10 +63,12 @@ export function getCachedUserInfo() {
 
 export function setCachedUserInfo(userInfo) {
   window.localStorage.setItem(USER_INFO_KEY, JSON.stringify(userInfo || {}));
+  window.dispatchEvent(new CustomEvent("blog-user-info-updated"));
 }
 
 export function clearCachedUserInfo() {
   window.localStorage.removeItem(USER_INFO_KEY);
+  window.dispatchEvent(new CustomEvent("blog-user-info-updated"));
 }
 
 export async function refreshCurrentUserInfo() {

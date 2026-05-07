@@ -8,15 +8,17 @@ from backend.app.core.deps import get_current_user
 from backend.app.core.response import success_response
 from backend.app.core.security import create_access_token, hash_password, verify_password
 from backend.app.db.session import get_db
+from backend.app.models.article_collect import ArticleCollect
+from backend.app.models.article_read_later import ArticleReadLater
 from backend.app.models.user import User
+from backend.app.models.user_follow import UserFollow
+from backend.app.models.user_notification import UserNotification
 from backend.app.schemas.user import LoginRequest, PreferenceUpdateRequest, RegisterRequest
 
 router = APIRouter()
 
 
 def _normalize_optional(value: str | None) -> str | None:
-    """规范化可选字符串字段，去掉首尾空白。"""
-
     if value is None:
         return None
     normalized = value.strip()
@@ -25,8 +27,6 @@ def _normalize_optional(value: str | None) -> str | None:
 
 @router.post("/user/register")
 def register_user(payload: RegisterRequest, db: Session = Depends(get_db)):
-    """注册新用户。"""
-
     if len(payload.password.encode("utf-8")) > 72:
         raise HTTPException(status_code=400, detail="密码超过 bcrypt 72 字节限制")
 
@@ -57,8 +57,6 @@ def register_user(payload: RegisterRequest, db: Session = Depends(get_db)):
 
 @router.post("/user/login")
 def login_user(payload: LoginRequest, db: Session = Depends(get_db)):
-    """登录并签发 JWT。"""
-
     if len(payload.password.encode("utf-8")) > 72:
         raise HTTPException(status_code=400, detail="密码超过 bcrypt 72 字节限制")
 
@@ -101,19 +99,40 @@ def login_user(payload: LoginRequest, db: Session = Depends(get_db)):
 
 
 @router.get("/user/info")
-def get_user_info(current_user: User = Depends(get_current_user)):
-    """获取当前用户资料。"""
+def get_user_info(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    follower_count = db.query(UserFollow).filter(UserFollow.following_id == current_user.id).count()
+    following_count = db.query(UserFollow).filter(UserFollow.follower_id == current_user.id).count()
+    unread_notification_count = (
+        db.query(UserNotification)
+        .filter(UserNotification.user_id == current_user.id, UserNotification.is_read == False)
+        .count()
+    )
+    collection_count = db.query(ArticleCollect).filter(ArticleCollect.user_id == current_user.id).count()
+    read_later_count = (
+        db.query(ArticleReadLater)
+        .filter(ArticleReadLater.user_id == current_user.id)
+        .count()
+    )
 
     data = {
         "user_id": current_user.id,
         "username": current_user.username,
         "email": current_user.email,
         "phone": current_user.phone,
+        "role": current_user.role,
         "preference_tags": current_user.preference_tags or "",
         "create_time": current_user.create_time.strftime("%Y-%m-%d %H:%M:%S"),
         "last_login_time": current_user.last_login_time.strftime("%Y-%m-%d %H:%M:%S")
         if current_user.last_login_time
         else None,
+        "follower_count": follower_count,
+        "following_count": following_count,
+        "unread_notification_count": unread_notification_count,
+        "collection_count": collection_count,
+        "read_later_count": read_later_count,
     }
     return success_response(data)
 
@@ -124,8 +143,6 @@ def update_preference(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """更新当前用户偏好标签。"""
-
     current_user.preference_tags = payload.preference_tags
     db.add(current_user)
     db.commit()

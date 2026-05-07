@@ -12,7 +12,8 @@
         <el-button
           class="ghost-button recommend-follow__button"
           size="small"
-          @click="toggleFollow(item)"
+          :loading="loadingId === item.user_id"
+          @click="toggleFollowState(item)"
         >
           {{ item.followed ? "已关注" : "关注" }}
         </el-button>
@@ -22,21 +23,33 @@
 </template>
 
 <script setup>
+import { ref } from "vue";
 import EmptyState from "../EmptyState.vue";
+import { toggleFollow } from "../../services/social.js";
+import { refreshCurrentUserInfo } from "../../services/user.js";
 
-const props = defineProps({
+defineProps({
   list: {
     type: Array,
     required: true,
   },
 });
 
-/**
- * Toggle follow status in local list.
- * @param {Object} item Creator item.
- * @returns {void} No return value.
- */
-function toggleFollow(item) {
-  item.followed = !item.followed;
+const loadingId = ref(null);
+
+async function toggleFollowState(item) {
+  const action = item.followed ? "unfollow" : "follow";
+  try {
+    loadingId.value = item.user_id;
+    const data = await toggleFollow({
+      target_user_id: item.user_id,
+      action,
+    });
+    item.followed = Boolean(data?.is_followed);
+    item.follower_count = Number(data?.follower_count || item.follower_count || 0);
+    await refreshCurrentUserInfo();
+  } finally {
+    loadingId.value = null;
+  }
 }
 </script>
