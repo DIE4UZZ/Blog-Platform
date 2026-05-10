@@ -7,6 +7,7 @@ __pycache__/
 # Virtualenv
 backend/.venv/
 .venv/
+venv/
 
 # Env files
 backend/.env
@@ -14,3 +15,35 @@ backend/.env
 
 # Secrets
 /token.txt
+
+# macOS
+.DS_Store
+
+# Logs
+*.log
+backend.log
+frontend.log
+
+# PID files
+*.pid
+.backend.pid
+.frontend.pid
+
+# Node modules
+node_modules/
+
+# Frontend build output
+frontend/dist/
+
+# Uploads (user-generated content)
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# IDE
+.vscode/
+.idea/
