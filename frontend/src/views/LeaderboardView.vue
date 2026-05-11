@@ -7,12 +7,7 @@
     </section>
 
     <div class="leaderboard-grid">
-      <SectionCard title="辟谣专区">
-        <template #actions>
-          <el-button class="ghost-button" size="small" @click="handleRefresh">
-            刷新
-          </el-button>
-        </template>
+      <SectionCard title="热门文章排行">
         <el-form class="leaderboard-filters" label-position="top">
           <el-form-item label="关键词">
             <el-input v-model="filters.keyword" placeholder="搜索标题关键词" />

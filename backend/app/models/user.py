@@ -58,6 +58,9 @@ class User(Base):
     # 用户角色：默认 "user"，管理员为 "admin"
     role = Column(String(32), nullable=False, default="user", index=True)
 
+    # 个人简介
+    bio = Column(String(500), nullable=True)
+
     # 偏好标签：逗号分隔的标签字符串，用于推荐算法个性化
     # 例如："Python,机器学习,深度学习"
     preference_tags = Column(String(512), nullable=True)

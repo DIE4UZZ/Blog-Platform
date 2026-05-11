@@ -90,6 +90,20 @@ export function updatePreferenceTags(payload) {
 }
 
 /**
+ * 更新当前用户的个人资料（用户名、邮箱、手机号、简介）。
+ *
+ * @param {{ username?: string, email?: string, phone?: string, bio?: string }} payload - 要更新的字段。
+ * @returns {Promise<Object>} 更新后的用户信息。
+ */
+export function updateUserProfile(payload) {
+  return request({
+    url: "/user/profile",
+    method: "put",
+    data: payload,
+  });
+}
+
+/**
  * 从 localStorage 读取缓存的用户信息（同步操作，无需网络请求）。
  *
  * 用于路由守卫、导航栏等需要快速获取用户信息的场景。

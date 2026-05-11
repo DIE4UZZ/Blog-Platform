@@ -23,7 +23,7 @@ from backend.app.models.article_read_later import ArticleReadLater
 from backend.app.models.user import User
 from backend.app.models.user_follow import UserFollow
 from backend.app.models.user_notification import UserNotification
-from backend.app.schemas.user import LoginRequest, PreferenceUpdateRequest, RegisterRequest
+from backend.app.schemas.user import LoginRequest, PreferenceUpdateRequest, RegisterRequest, UpdateProfileRequest
 
 router = APIRouter()
 
@@ -229,6 +229,7 @@ def get_user_info(
         "follower_count": follower_count,
         "following_count": following_count,
         "unread_notification_count": unread_notification_count,
+        "bio": current_user.bio or "",
         "collection_count": collection_count,
         "read_later_count": read_later_count,
     }
@@ -259,3 +260,66 @@ def update_preference(
     db.add(current_user)
     db.commit()
     return success_response({}, message="更新成功")
+
+
+@router.put("/user/profile")
+def update_profile(
+    payload: UpdateProfileRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """更新当前用户的个人资料（用户名、邮箱、手机号、简介）。
+
+    只更新请求体中非 None 的字段，未传入的字段保持不变。
+    用户名和邮箱有唯一性校验。
+
+    Args:
+        payload (UpdateProfileRequest): 请求体。
+        db (Session): 数据库会话。
+        current_user (User): 当前登录用户。
+
+    Returns:
+        成功响应，data 包含更新后的用户信息。
+    """
+    # 更新用户名（需唯一性校验）
+    if payload.username is not None:
+        new_username = payload.username.strip()
+        if new_username and new_username != current_user.username:
+            if db.query(User).filter(User.username == new_username, User.id != current_user.id).first():
+                raise HTTPException(status_code=400, detail="用户名已存在")
+            current_user.username = new_username
+
+    # 更新邮箱（需唯一性校验）
+    if payload.email is not None:
+        new_email = _normalize_optional(payload.email)
+        if new_email != current_user.email:
+            if new_email and db.query(User).filter(User.email == new_email, User.id != current_user.id).first():
+                raise HTTPException(status_code=400, detail="邮箱已注册")
+            current_user.email = new_email
+
+    # 更新手机号（需唯一性校验）
+    if payload.phone is not None:
+        new_phone = _normalize_optional(payload.phone)
+        if new_phone != current_user.phone:
+            if new_phone and db.query(User).filter(User.phone == new_phone, User.id != current_user.id).first():
+                raise HTTPException(status_code=400, detail="手机号已注册")
+            current_user.phone = new_phone
+
+    # 更新个人简介
+    if payload.bio is not None:
+        current_user.bio = payload.bio.strip()
+
+    db.add(current_user)
+    db.commit()
+    db.refresh(current_user)
+
+    return success_response(
+        {
+            "user_id": current_user.id,
+            "username": current_user.username,
+            "email": current_user.email,
+            "phone": current_user.phone,
+            "bio": current_user.bio or "",
+        },
+        message="资料更新成功",
+    )

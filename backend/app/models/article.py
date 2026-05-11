@@ -23,7 +23,8 @@ models/article.py —— 文章数据模型
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, Column, DateTime, Integer, String, Text
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy.orm import relationship
 
 from backend.app.db.base import Base
 
@@ -37,7 +38,10 @@ class Article(Base):
     id = Column(Integer, primary_key=True, index=True)
 
     # 作者 ID，关联 user 表，建立索引加速"我的文章"查询
-    author_id = Column(Integer, nullable=False, index=True)
+    author_id = Column(Integer, ForeignKey("user.id"), nullable=False, index=True)
+
+    # 关联作者用户对象（lazy 加载，访问时自动查询）
+    author = relationship("User", foreign_keys=[author_id], lazy="select")
 
     # 文章标题，最长 255 字符
     title = Column(String(255), nullable=False)
@@ -47,6 +51,9 @@ class Article(Base):
 
     # 文章正文，使用 Text 类型存储 Markdown 内容，无长度限制
     content = Column(Text, nullable=True)
+
+    # 文章 HTML 内容（由 Markdown 转换而来，供前端直接渲染）
+    html_content = Column(Text, nullable=True)
 
     # 文章分类，用于筛选和统计
     category = Column(String(64), nullable=True, index=True)

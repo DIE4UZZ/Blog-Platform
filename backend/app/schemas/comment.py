@@ -30,3 +30,7 @@ class CommentRequest(BaseModel):
         if len(value) > 2000:
             raise ValueError("评论内容不能超过 2000 字符")
         return value
+
+
+# 别名：兼容 routers/comment.py 中的导入名称
+CommentCreateRequest = CommentRequest

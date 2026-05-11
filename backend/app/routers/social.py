@@ -471,6 +471,7 @@ def notification_list(
         actor = actor_map.get(row.actor_user_id) if row.actor_user_id else None
         data.append(
             {
+                "id": row.id,
                 "notification_id": row.id,
                 "notification_type": row.notification_type,
                 "title": row.title,

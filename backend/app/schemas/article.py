@@ -70,3 +70,20 @@ class EditArticleRequest(BaseModel):
     category: Optional[str] = None      # 新分类
     tags: Optional[str] = None          # 新标签
     status: str = "published"           # 新状态
+
+
+# 别名：兼容 routers/article.py 中的导入名称
+ArticlePublishRequest = PublishArticleRequest
+ArticleEditRequest = EditArticleRequest
+
+
+class ArticleActionRequest(BaseModel):
+    """文章互动操作请求体（点赞/取消点赞/收藏/取消收藏）。
+
+    Attributes:
+        article_id (int): 目标文章 ID，必填。
+        action (str): 操作类型，如 "like"/"unlike"/"collect"/"uncollect"。
+    """
+
+    article_id: int     # 目标文章 ID，必填
+    action: str         # 操作类型，必填

@@ -24,7 +24,7 @@
       <div v-else class="stack-list">
         <button
           v-for="item in notifications"
-          :key="item.notification_id"
+          :key="item.id"
           type="button"
           class="stack-item text-left"
           @click="openNotification(item)"
@@ -41,6 +41,22 @@
         </button>
       </div>
     </SectionCard>
+
+    <!-- 通知详情弹窗 -->
+    <el-dialog v-model="detailVisible" title="通知详情" width="480px" :close-on-click-modal="true">
+      <div v-if="currentNotification" style="line-height: 1.8;">
+        <p style="margin: 0 0 8px;"><strong>{{ currentNotification.title }}</strong></p>
+        <p style="margin: 0 0 12px; color: var(--ink-soft);">{{ currentNotification.content }}</p>
+        <div class="flex items-center justify-between gap-3">
+          <span class="meta-text">来自：{{ currentNotification.actor?.username || "系统" }}</span>
+          <span class="meta-text">{{ formatDate(currentNotification.create_time) }}</span>
+        </div>
+      </div>
+      <template #footer>
+        <el-button @click="detailVisible = false">关闭</el-button>
+        <el-button v-if="currentNotification?.article_id" type="primary" @click="goToArticle">查看文章</el-button>
+      </template>
+    </el-dialog>
   </AppLayout>
 </template>
 
@@ -80,16 +96,25 @@ async function handleReadAll() {
   await loadNotifications();
 }
 
+const detailVisible = ref(false);
+const currentNotification = ref(null);
+
 async function openNotification(item) {
   if (!item.is_read) {
-    await markNotificationsRead({ notification_ids: [item.notification_id] });
+    await markNotificationsRead({ notification_ids: [item.id] });
+    item.is_read = true;
+    unreadCount.value = Math.max(0, unreadCount.value - 1);
+    await refreshCurrentUserInfo();
   }
-  await refreshCurrentUserInfo();
-  if (item.target_path) {
-    router.push(item.target_path);
-    return;
+  currentNotification.value = item;
+  detailVisible.value = true;
+}
+
+function goToArticle() {
+  if (currentNotification.value?.article_id) {
+    detailVisible.value = false;
+    router.push(`/articles/${currentNotification.value.article_id}`);
   }
-  await loadNotifications();
 }
 
 onMounted(loadNotifications);

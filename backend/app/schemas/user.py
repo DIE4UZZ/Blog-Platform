@@ -87,3 +87,25 @@ class UpdatePreferenceRequest(BaseModel):
     """
 
     preference_tags: str  # 偏好标签，逗号分隔
+
+
+class UpdateProfileRequest(BaseModel):
+    """更新用户个人资料请求体。
+
+    所有字段均为可选，只更新传入的字段。
+
+    Attributes:
+        username (Optional[str]): 新用户名。
+        email (Optional[str]): 新邮箱。
+        phone (Optional[str]): 新手机号。
+        bio (Optional[str]): 个人简介。
+    """
+
+    username: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    bio: Optional[str] = None
+
+
+# 别名：兼容 routers/user.py 中的导入名称
+PreferenceUpdateRequest = UpdatePreferenceRequest

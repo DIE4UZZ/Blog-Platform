@@ -48,8 +48,8 @@ class Recommendation(Base):
     # 推荐算法类型：collaborative / content / hot / new
     recommend_type = Column(String(32), nullable=True)
 
-    # 推荐分数，由推荐算法计算，用于排序和效果分析
-    score = Column(Float, nullable=True)
+    # 推荐分数，由推荐算法计算，用于排序和效果分析（数据库列名：recommend_score）
+    recommend_score = Column(Float, nullable=True)
 
     # 用户是否点击了该推荐项，初始为 False，用户点击后更新为 True
     is_clicked = Column(Boolean, nullable=False, default=False)

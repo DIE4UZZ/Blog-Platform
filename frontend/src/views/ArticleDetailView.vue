@@ -16,17 +16,7 @@
               <span v-if="article.status" class="tag-chip tag-chip--soft">{{ article.status }}</span>
             </div>
             <h1 class="detail-title">{{ article.title }}</h1>
-            <div class="detail-author">
-              <span class="meta-text">作者：{{ article.author?.username || "匿名" }}</span>
-              <span class="meta-divider"></span>
-              <span class="meta-text">关注者 {{ article.author?.follower_count || 0 }}</span>
-              <span class="meta-divider"></span>
-              <span class="meta-text">阅读 {{ article.view_count || 0 }}</span>
-              <span class="meta-divider"></span>
-              <span class="meta-text">评论 {{ article.comment_count || 0 }}</span>
-              <span class="meta-divider"></span>
-              <span class="meta-text">收藏 {{ article.collect_count || 0 }}</span>
-            </div>
+            
 
             <div v-if="showFollowAuthorButton" class="mb-5">
               <el-button class="ghost-button" :loading="isFollowingAuthor" @click="handleFollowAuthor">
@@ -40,38 +30,53 @@
               </span>
             </div>
 
+            <div class="detail-content" v-html="article.html_content || article.content"></div>
+
             <div class="detail-kpi-grid">
-              <div class="detail-kpi">
-                <span class="detail-kpi__label">阅读数</span>
-                <strong class="detail-kpi__value">{{ article.view_count || 0 }}</strong>
+              <div class="detail-kpi detail-kpi--view">
+                <div class="detail-kpi__icon detail-kpi__icon--blue">
+                  <el-icon :size="22"><View /></el-icon>
+                </div>
+                <el-statistic :value="article.view_count || 0" title="阅读数" />
               </div>
-              <div class="detail-kpi">
-                <span class="detail-kpi__label">点赞数</span>
-                <strong class="detail-kpi__value">{{ article.like_count || 0 }}</strong>
+              <div
+                class="detail-kpi detail-kpi--like detail-kpi--clickable"
+                :class="{ 'detail-kpi--active': article.is_liked }"
+                @click="handleLike"
+              >
+                <div class="detail-kpi__icon detail-kpi__icon--red">
+                  <el-icon :size="22"><Pointer /></el-icon>
+                </div>
+                <el-statistic :value="article.like_count || 0" :title="article.is_liked ? '已点赞' : '点赞'" />
               </div>
-              <div class="detail-kpi">
-                <span class="detail-kpi__label">收藏数</span>
-                <strong class="detail-kpi__value">{{ article.collect_count || 0 }}</strong>
+              <div
+                class="detail-kpi detail-kpi--collect detail-kpi--clickable"
+                :class="{ 'detail-kpi--active': article.is_collected }"
+                @click="handleCollect"
+              >
+                <div class="detail-kpi__icon detail-kpi__icon--amber">
+                  <el-icon :size="22"><Star /></el-icon>
+                </div>
+                <el-statistic :value="article.collect_count || 0" :title="article.is_collected ? '已收藏' : '收藏'" />
               </div>
-              <div class="detail-kpi">
-                <span class="detail-kpi__label">评论数</span>
-                <strong class="detail-kpi__value">{{ article.comment_count || 0 }}</strong>
+              <div class="detail-kpi detail-kpi--comment">
+                <div class="detail-kpi__icon detail-kpi__icon--green">
+                  <el-icon :size="22"><ChatDotRound /></el-icon>
+                </div>
+                <el-statistic :value="article.comment_count || 0" title="评论数" />
               </div>
             </div>
 
             <div class="detail-actions">
-              <el-button class="ghost-button" @click="handleLike">
-                {{ article.is_liked ? "已点赞" : "点赞" }} ({{ article.like_count || 0 }})
-              </el-button>
-              <el-button class="ghost-button" @click="handleCollect">
-                {{ article.is_collected ? "已收藏" : "收藏" }} ({{ article.collect_count || 0 }})
-              </el-button>
-              <el-button class="ghost-button" @click="handleReadLater">
+              <el-button
+                class="ghost-button"
+                :class="{ 'ghost-button--active': article.is_saved_for_later }"
+                @click="handleReadLater"
+              >
+                <el-icon style="margin-right: 6px"><Clock /></el-icon>
                 {{ article.is_saved_for_later ? "已加入稍后读" : "加入稍后读" }}
               </el-button>
             </div>
-
-            <div class="detail-content" v-html="article.html_content || article.content"></div>
           </div>
         </SectionCard>
 
@@ -200,6 +205,7 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from "vue";
 import { useRoute } from "vue-router";
 import { ElMessage } from "element-plus";
+import { View, ChatDotRound, Star, Pointer, Clock } from "@element-plus/icons-vue";
 import AppLayout from "../components/AppLayout.vue";
 import SectionCard from "../components/SectionCard.vue";
 import EmptyState from "../components/EmptyState.vue";
