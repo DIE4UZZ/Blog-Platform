@@ -202,8 +202,8 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, reactive, ref } from "vue";
-import { useRoute } from "vue-router";
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import { ElMessage } from "element-plus";
 import { View, ChatDotRound, Star, Pointer, Clock } from "@element-plus/icons-vue";
 import AppLayout from "../components/AppLayout.vue";
@@ -429,12 +429,32 @@ async function reportReadBehavior() {
   });
 }
 
-onMounted(() => {
+function initPage() {
   readStartTime.value = Date.now();
-  window.addEventListener("scroll", handleScroll, { passive: true });
+  maxScrollDepth.value = 0;
+  commentContent.value = "";
+  activeReplyId.value = null;
+  window.scrollTo({ top: 0 });
   loadArticleDetail();
   loadSimilarArticles();
   loadComments();
+}
+
+// 监听路由参数变化，实现相关文章点击后刷新页面数据
+watch(
+  () => route.params.id,
+  (newId, oldId) => {
+    if (newId && newId !== oldId) {
+      // 先上报上一篇文章的阅读行为
+      reportReadBehavior();
+      initPage();
+    }
+  }
+);
+
+onMounted(() => {
+  window.addEventListener("scroll", handleScroll, { passive: true });
+  initPage();
 });
 
 onBeforeUnmount(() => {
